@@ -10,16 +10,17 @@ Checked means completed and reviewed. Each implementation phase requires a succe
 - [x] Record scope defaults, privacy lifecycle, setup needs, and unmeasured device risks.
 - [x] Self-review required sections, document links, and planning-only scope.
 - [x] Run documentation diff/whitespace checks; build/tests not applicable without application code.
-- [ ] Transition to Phase 1 only on product owner's instruction.
+- [x] Transition to Phase 1 only on product owner's instruction.
 
 ## Phase 1 — Android application shell
 
-- [ ] Verify/install Android Studio and SDK tooling; pin compatible versions and Gradle wrapper.
-- [ ] Create one Kotlin app module with Compose, Material 3, ViewModel, StateFlow, Navigation Compose.
-- [ ] Configure proposed API 28 baseline, build variants, package identity, and source structure.
-- [ ] Add Home, Result, History, and Settings routes with clearly labeled unavailable features.
-- [ ] Configure privacy-safe manifest/backup rules and Git exclusions.
-- [ ] Build debug APK, launch emulator/phone, check navigation and rotation, self-review/commit.
+- [x] Verify environment; install ignored project-local JDK/SDK for checks and pin compatible versions plus Gradle wrapper. Android Studio remains a documented manual install.
+- [x] Create one Kotlin app module with Compose, Material 3, ViewModel, StateFlow, Navigation Compose.
+- [x] Configure API 28 baseline, build variants, `com.kanwarai.voiceprofessionalmessage`, and simple source structure.
+- [x] Add Home, Result, History, and Settings routes with clearly labeled unavailable features.
+- [x] Configure permission-free privacy-safe manifest/backup rules and Git exclusions.
+- [x] Build debug and device-test APKs, pass unit tests/lint, inspect permissions, review navigation/rotation test coverage, accessibility basics, complexity, and logs.
+- [ ] Execute launch, four-route navigation, and activity recreation tests on an emulator or physical device; none was available in Phase 1.
 
 ## Phase 2 — UI/UX foundation
 
