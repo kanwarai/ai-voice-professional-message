@@ -4,7 +4,7 @@ Speak naturally, then review a clean message you can edit, copy, or share.
 
 ## Current status
 
-Phase 1 application shell is complete (1 October 2026). It is a buildable native Android app with Home, Result, History, and Settings routes. Recording, transcription, rewriting, local history, model downloads, and persistent settings are intentionally unavailable until their planned phases.
+Phase 2 UI/UX foundation is complete (1 October 2026). The buildable native Android app now has a polished responsive Home experience, working message type and tone selectors, light/dark/system themes, and refined Result, History, and Settings screens. Recording, transcription, rewriting, local history, model downloads, and persistent settings remain intentionally unavailable until their planned phases.
 
 The package/application ID is `com.kanwarai.voiceprofessionalmessage`.
 
@@ -12,7 +12,7 @@ The package/application ID is `com.kanwarai.voiceprofessionalmessage`.
 
 1. Read [PRODUCT_SPEC.md](PRODUCT_SPEC.md) for what the first version will do.
 2. Read [TASKS.md](TASKS.md) to follow progress. Checked boxes mean completed work.
-3. The next phase establishes the fuller UI/UX foundation. Recording and AI arrive in later phases.
+3. The next phase adds real audio recording and its lifecycle/error handling. AI arrives in later phases.
 4. Before device testing, have an Android phone and USB cable available. We propose Android 9 or newer, a 64-bit processor, and preferably at least 4 GB RAM. These are starting targets, not proven compatibility guarantees.
 
 The planned app works offline after its free AI models are downloaded. It will not upload recordings or messages to an AI service. Review generated text before sharing: small models can misunderstand speech or change meaning.
@@ -50,7 +50,17 @@ Open the root folder in Android Studio, allow SDK/Gradle sync, then run the `app
 .\gradlew.bat assembleDebug testDebugUnitTest lintDebug
 ```
 
-The debug APK is generated at `app/build/outputs/apk/debug/app-debug.apk`. On 1 October 2026, the debug APK, unit tests, compiled device-test APK, and lint all completed successfully. Lint reported zero errors; version-update notices reflect the deliberate API 36 compatibility choice. The device navigation tests compile but were not executed because no emulator/device was connected.
+The debug APK is generated at `app/build/outputs/apk/debug/app-debug.apk`. On 1 October 2026, the debug APK, six unit tests, compiled device-test APK, and lint all completed successfully. Lint reported zero errors; version-update notices reflect the deliberate API 36 compatibility choice. The device UI tests compile but were not executed because no emulator/device was connected.
+
+## Phase 2 UI behavior
+
+- Home uses a single-column phone layout and a restrained two-column layout on wider windows. Content scrolls on short screens and with large text, and the main content width is capped for readability.
+- Message type offers Message and Email, defaulting to Message. Tone offers Professional, Friendly, and Concise, defaulting to Professional.
+- Type and tone are held in ViewModel/StateFlow state and restored through activity recreation. They are not stored after a fresh app session.
+- Settings offers System, Light, and Dark appearance modes. Changes apply immediately across every route and survive activity recreation, without DataStore persistence.
+- Result and History contain honest empty states. Settings labels both future AI models as not installed and explains the current local-only privacy boundary.
+- Accessibility foundations include heading semantics, radio-button selection state, meaningful action labels, decorative-icon suppression, 48 dp or larger touch targets, high-contrast light/dark palettes, flexible selector layouts, and scrollable large-text layouts.
+- No preview fixture, fake message, fake recording state, permission, persistence layer, network call, or AI behavior is included.
 
 Desktop AI experiments will use local llama.cpp and whisper.cpp tools; Windows source builds may additionally need Visual Studio C++ Build Tools. Python is optional if model conversion becomes necessary. No paid AI subscription, API key, backend, or user account is needed for development or normal app use. Google Play publication later needs a developer account; any publication fee requires owner approval. Public model downloads are planned without sign-in; hosting availability remains a release check.
 
@@ -65,4 +75,4 @@ Desktop AI experiments will use local llama.cpp and whisper.cpp tools; Windows s
 
 ## Project structure
 
-The single `app` module currently contains `navigation/`, `presentation/`, `ui/screens/`, and `ui/theme/`. Later packages such as `audio/`, `ai/`, and `data/` will be created only when their phases begin. Model binaries, recordings, private messages, build output, local SDK paths, and signing keys remain outside Git.
+The single `app` module currently contains `navigation/`, `presentation/`, `ui/components/`, `ui/screens/`, and `ui/theme/`. Later packages such as `audio/`, `ai/`, and `data/` will be created only when their phases begin. Model binaries, recordings, private messages, build output, local SDK paths, and signing keys remain outside Git.

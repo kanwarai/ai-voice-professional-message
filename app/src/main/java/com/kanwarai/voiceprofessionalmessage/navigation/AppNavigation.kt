@@ -10,9 +10,12 @@ import com.kanwarai.voiceprofessionalmessage.ui.screens.HistoryScreen
 import com.kanwarai.voiceprofessionalmessage.ui.screens.HomeScreen
 import com.kanwarai.voiceprofessionalmessage.ui.screens.ResultScreen
 import com.kanwarai.voiceprofessionalmessage.ui.screens.SettingsScreen
+import com.kanwarai.voiceprofessionalmessage.ui.theme.ThemeMode
 
 @Composable
 fun AppNavigation(
+    themeMode: ThemeMode,
+    onThemeModeSelected: (ThemeMode) -> Unit,
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
 ) {
@@ -35,7 +38,11 @@ fun AppNavigation(
             HistoryScreen(onBack = navController::navigateUp)
         }
         composable(AppRoute.Settings.route) {
-            SettingsScreen(onBack = navController::navigateUp)
+            SettingsScreen(
+                themeMode = themeMode,
+                onThemeModeSelected = onThemeModeSelected,
+                onBack = navController::navigateUp,
+            )
         }
     }
 }

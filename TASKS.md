@@ -24,11 +24,12 @@ Checked means completed and reviewed. Each implementation phase requires a succe
 
 ## Phase 2 — UI/UX foundation
 
-- [ ] Design all six screens/states and type/tone controls.
-- [ ] Implement light/dark/system themes and narrow/wide layouts.
-- [ ] Check TalkBack, large fonts, contrast, focus, and touch targets.
-- [ ] Show labeled debug fixtures only where needed; verify release excludes them.
-- [ ] Build, UI smoke-check, self-review/commit.
+- [x] Design the Phase 2 Home, Result, History, and Settings experiences plus working type/tone controls; actual recording/processing states remain Phase 3 work.
+- [x] Implement immediate session-only light/dark/system themes and narrow/wide scroll-safe layouts.
+- [x] Review TalkBack semantics, headings, selected state, large-text wrapping, contrast, focus order, and 48 dp touch targets in code/tests.
+- [x] Use no debug fixtures, fake messages, fake recording states, or simulated AI behavior.
+- [x] Build debug/device-test APKs, pass unit tests/lint, inspect permissions/logging, and complete code/accessibility/responsiveness self-review.
+- [ ] Execute Phase 1 and Phase 2 UI tests plus visual light/dark, narrow/wide, and large-font inspection on an emulator or physical device; none was available.
 
 ## Phase 3 — Audio recording
 

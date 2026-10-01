@@ -1,46 +1,126 @@
 package com.kanwarai.voiceprofessionalmessage.ui.screens
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.kanwarai.voiceprofessionalmessage.ui.components.SegmentedSelector
+import com.kanwarai.voiceprofessionalmessage.ui.components.SettingsSection
+import com.kanwarai.voiceprofessionalmessage.ui.theme.ThemeMode
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
-    ShellScreen(
-        title = "Settings",
-        emptyMessage = "Settings are coming in later phases.",
-        supportingMessage = "These sections show what will be configurable.",
-        onBack = onBack,
-    ) {
-        Column(modifier = Modifier.padding(top = 24.dp)) {
-            SettingPreview("Appearance", "Theme controls arrive in Phase 2.")
-            HorizontalDivider()
-            SettingPreview("AI models", "Local model management arrives in Phase 8.")
-            HorizontalDivider()
-            SettingPreview("Privacy", "Privacy information and controls arrive in later phases.")
+fun SettingsScreen(
+    themeMode: ThemeMode,
+    onThemeModeSelected: (ThemeMode) -> Unit,
+    onBack: () -> Unit,
+) {
+    ShellScreen(title = "Settings", onBack = onBack) {
+        SettingsSection(title = "Appearance", icon = Icons.Outlined.Palette) {
+            Text(
+                text = "Choose how the app looks for this session.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            SegmentedSelector(
+                title = "Theme",
+                options = ThemeMode.entries,
+                selectedOption = themeMode,
+                optionLabel = ThemeMode::label,
+                onOptionSelected = onThemeModeSelected,
+            )
+            Text(
+                text = "Theme selection is not saved after the app is fully closed yet.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        SettingsSection(title = "AI models", icon = Icons.Outlined.AutoAwesome) {
+            ModelStatusRow(
+                icon = Icons.Outlined.Mic,
+                title = "Speech recognition",
+                status = "Coming in Phase 4",
+            )
+            ModelStatusRow(
+                icon = Icons.Outlined.AutoAwesome,
+                title = "Message rewriting",
+                status = "Coming in Phase 5",
+            )
+            Text(
+                text = "No AI models are installed or downloaded in this phase.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        SettingsSection(title = "Privacy", icon = Icons.Outlined.Lock) {
+            Text(
+                text = "Voice notes and generated messages are designed to stay on your device.",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Text(
+                text = "This UI does not record audio, connect to AI services, or store messages yet.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
 
 @Composable
-private fun SettingPreview(title: String, detail: String) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp),
+private fun ModelStatusRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    status: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = title, style = MaterialTheme.typography.titleMedium)
-        Text(
-            text = detail,
-            modifier = Modifier.padding(top = 4.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = "Not installed",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Surface(
+                modifier = Modifier.padding(top = 8.dp),
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.secondaryContainer,
+            ) {
+                Text(
+                    text = status,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+        }
     }
 }
