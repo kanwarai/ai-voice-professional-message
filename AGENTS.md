@@ -4,7 +4,7 @@
 
 Build a simple native Android V1 using Kotlin, Jetpack Compose, Material 3, MVVM, ViewModel, StateFlow, and Navigation Compose. Use local whisper.cpp for speech recognition and local Qwen3-0.6B for rewriting only. Never send audio or transcripts to third-party AI APIs. Do not run Ollama inside Android. No paid dependencies without approval.
 
-Phase 3 is complete except for checks that require a connected Android device. Do not begin Phase 4 or later work until the product owner requests it. Read the product, architecture, AI, privacy, and task documents before work. Explain important choices plainly and make routine technical decisions without unnecessary questions.
+Phase 4 is complete except for transcription and benchmark checks that require a connected Android device and installed model. Do not begin Phase 5 or later work until the product owner requests it. Read the product, architecture, AI, privacy, and task documents before work. Explain important choices plainly and make routine technical decisions without unnecessary questions.
 
 ## Required rules
 

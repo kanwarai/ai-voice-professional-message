@@ -42,11 +42,12 @@ Checked means completed and reviewed. Each implementation phase requires a succe
 
 ## Phase 4 — Speech-to-text
 
-- [ ] Pin whisper.cpp/NDK/CMake and implement JNI SpeechToTextEngine.
-- [ ] Verify artifacts/licenses/hashes; load tiny.en privately on CPU.
-- [ ] Implement silence handling, native abort, typed errors, and transcription correction.
+- [x] Pin whisper.cpp v1.9.4 commit `927cfce34f31707e17f2bff35c349632fb9e2c3a`, NDK 27.2.12479018, and CMake 3.22.1; implement a CPU-only arm64 JNI SpeechToTextEngine.
+- [x] Verify the upstream MIT license and tiny.en artifact revision, size, and SHA-256; validate and load a locally supplied model from private no-backup storage.
+- [x] Implement WAV/energy validation, silence and empty-output rejection, native abort, typed errors, in-memory transcript display/correction, and terminal audio cleanup.
 - [ ] Benchmark tiny.en versus base.en for English accuracy, time, RAM, and heat.
-- [ ] Audit native printing/content leakage; build/device tests, self-review/commit.
+- [x] Suppress upstream Whisper/ggml callbacks, audit content logging, build the native/debug/device-test APKs, pass 23 unit tests and lint with zero errors, inspect the packaged ABI/permissions, and self-review.
+- [ ] Execute real local transcription, cancellation, silence, repetition, lifecycle, memory, and pending Phase 1–3 runtime tests; ADB reported no connected device.
 
 ## Phase 5 — Qwen integration
 

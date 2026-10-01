@@ -1,6 +1,7 @@
 package com.kanwarai.voiceprofessionalmessage.audio
 
 import kotlinx.coroutines.flow.Flow
+import java.io.File
 
 const val AUDIO_SAMPLE_RATE_HZ = 16_000
 const val AUDIO_CHANNEL_COUNT = 1
@@ -19,6 +20,7 @@ interface AudioRecorder {
 }
 
 data class RecordedAudio(
+    val file: File,
     val durationMillis: Long,
     val byteCount: Long,
 )

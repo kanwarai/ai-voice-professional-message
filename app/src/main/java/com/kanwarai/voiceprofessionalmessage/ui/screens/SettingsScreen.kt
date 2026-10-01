@@ -54,15 +54,17 @@ fun SettingsScreen(
             ModelStatusRow(
                 icon = Icons.Outlined.Mic,
                 title = "Speech recognition",
-                status = "Coming in Phase 4",
+                availability = "Checked when used",
+                status = "Local tiny.en · manual development install",
             )
             ModelStatusRow(
                 icon = Icons.Outlined.AutoAwesome,
                 title = "Message rewriting",
+                availability = "Not installed",
                 status = "Coming in Phase 5",
             )
             Text(
-                text = "No AI models are installed or downloaded in this phase.",
+                text = "Automatic model installation will be added later. Phase 4 verifies a manually supplied private speech model when transcription starts.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -74,7 +76,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodyLarge,
             )
             Text(
-                text = "Voice notes are recorded only on request, kept temporarily in private app cache, and never sent to a service. AI and message history are not available yet.",
+                text = "Voice notes are recorded only on request, transcribed locally, then deleted. Transcripts stay in memory and are never sent to a service.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -86,6 +88,7 @@ fun SettingsScreen(
 private fun ModelStatusRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
+    availability: String,
     status: String,
 ) {
     Row(
@@ -105,7 +108,7 @@ private fun ModelStatusRow(
                 fontWeight = FontWeight.Medium,
             )
             Text(
-                text = "Not installed",
+                text = availability,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

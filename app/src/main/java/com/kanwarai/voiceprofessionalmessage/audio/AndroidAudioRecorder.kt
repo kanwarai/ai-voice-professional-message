@@ -162,6 +162,7 @@ class AndroidAudioRecorder(
         completedFile = session.file
         AudioRecorderResult.Success(
             RecordedAudio(
+                file = session.file,
                 durationMillis = (SystemClock.elapsedRealtime() - session.startedAtMillis).coerceAtLeast(0),
                 byteCount = session.file.length(),
             ),

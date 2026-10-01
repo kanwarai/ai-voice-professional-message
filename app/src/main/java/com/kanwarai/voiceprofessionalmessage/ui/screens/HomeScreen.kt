@@ -23,12 +23,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Button
@@ -38,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -83,7 +81,7 @@ fun HomeScreen(
     val activity = remember(context) { context.findActivity() }
     val application = context.applicationContext as VoiceMessageApplication
     val viewModel: HomeViewModel = viewModel(
-        factory = HomeViewModel.factory(application.audioRecorder),
+        factory = HomeViewModel.factory(application.audioRecorder, application),
     )
     val uiState by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -171,7 +169,9 @@ fun HomeScreen(
                             onRecord = ::requestRecording,
                             onStop = viewModel::stopRecording,
                             onCancel = { viewModel.cancelRecording() },
-                            onDelete = viewModel::discardRecording,
+                            onCancelTranscription = { viewModel.cancelTranscription() },
+                            onDeleteTranscript = viewModel::discardTranscript,
+                            onTranscriptChanged = viewModel::updateTranscript,
                             onDismissError = viewModel::dismissError,
                             onOpenSettings = { context.openAppSettings() },
                             modifier = Modifier.weight(1f),
@@ -196,7 +196,9 @@ fun HomeScreen(
                             onRecord = ::requestRecording,
                             onStop = viewModel::stopRecording,
                             onCancel = { viewModel.cancelRecording() },
-                            onDelete = viewModel::discardRecording,
+                            onCancelTranscription = { viewModel.cancelTranscription() },
+                            onDeleteTranscript = viewModel::discardTranscript,
+                            onTranscriptChanged = viewModel::updateTranscript,
                             onDismissError = viewModel::dismissError,
                             onOpenSettings = { context.openAppSettings() },
                         )
@@ -221,7 +223,9 @@ private fun BrandAndRecord(
     onRecord: () -> Unit,
     onStop: () -> Unit,
     onCancel: () -> Unit,
-    onDelete: () -> Unit,
+    onCancelTranscription: () -> Unit,
+    onDeleteTranscript: () -> Unit,
+    onTranscriptChanged: (String) -> Unit,
     onDismissError: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
@@ -249,7 +253,9 @@ private fun BrandAndRecord(
             onRecord = onRecord,
             onStop = onStop,
             onCancel = onCancel,
-            onDelete = onDelete,
+            onCancelTranscription = onCancelTranscription,
+            onDeleteTranscript = onDeleteTranscript,
+            onTranscriptChanged = onTranscriptChanged,
             onDismissError = onDismissError,
             onOpenSettings = onOpenSettings,
             modifier = Modifier.padding(top = 20.dp),
@@ -279,7 +285,9 @@ private fun RecordingControl(
     onRecord: () -> Unit,
     onStop: () -> Unit,
     onCancel: () -> Unit,
-    onDelete: () -> Unit,
+    onCancelTranscription: () -> Unit,
+    onDeleteTranscript: () -> Unit,
+    onTranscriptChanged: (String) -> Unit,
     onDismissError: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
@@ -333,21 +341,30 @@ private fun RecordingControl(
             is RecordingState.Stopping -> ProgressState(
                 "Finalizing ${formatRecordingDuration(recordingState.elapsedMillis)} voice note…",
             )
-            is RecordingState.Ready -> {
-                Icon(
-                    imageVector = Icons.Outlined.CheckCircle,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                )
+            is RecordingState.Transcribing -> {
+                ProgressState("Transcribing voice note…")
                 Text(
-                    text = "Voice note recorded.",
-                    style = MaterialTheme.typography.titleLarge,
+                    text = "Audio stays on this device.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedButton(onClick = onCancelTranscription) { Text("Cancel transcription") }
+            }
+            is RecordingState.Transcript -> {
+                Text(
+                    text = "Transcript",
+                    modifier = Modifier.semantics { heading() },
+                    style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center,
+                )
+                OutlinedTextField(
+                    value = recordingState.text,
+                    onValueChange = onTranscriptChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Transcript text") },
+                    minLines = 4,
                 )
                 Text(
-                    text = "${formatRecordingDuration(recordingState.durationMillis)} · Transcription will be added in Phase 4.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "Message rewriting will be added in Phase 5.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
@@ -356,19 +373,33 @@ private fun RecordingControl(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     OutlinedButton(
-                        onClick = onDelete,
+                        onClick = onDeleteTranscript,
                         modifier = Modifier.weight(1f),
-                    ) {
-                        Icon(Icons.Outlined.Delete, contentDescription = null)
-                        Text("Delete", modifier = Modifier.padding(start = 6.dp))
+                    ) { Text("Delete") }
+                    Button(onClick = onRecord, modifier = Modifier.weight(1f)) {
+                        Text("Record again")
                     }
-                    Button(
-                        onClick = onRecord,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Icon(Icons.Outlined.Refresh, contentDescription = null)
-                        Text("Record again", modifier = Modifier.padding(start = 6.dp))
-                    }
+                }
+            }
+            is RecordingState.TranscriptionFailed -> {
+                Icon(Icons.Outlined.Warning, contentDescription = null)
+                Text(
+                    text = if (recordingState.error == com.kanwarai.voiceprofessionalmessage.ai.speech.TranscriptionError.ModelMissing) {
+                        "Speech model not installed"
+                    } else {
+                        "Transcription problem"
+                    },
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = recordingState.error.userMessage,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TextButton(onClick = onDeleteTranscript) { Text("Dismiss") }
+                    Button(onClick = onRecord) { Text("Record again") }
                 }
             }
             is RecordingState.PermissionDenied -> {

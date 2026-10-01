@@ -6,6 +6,7 @@ import com.kanwarai.voiceprofessionalmessage.audio.AudioRecorderResult
 import com.kanwarai.voiceprofessionalmessage.audio.RecordedAudio
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import java.io.File
 
 class FakeAudioRecorder : AudioRecorder {
     private val mutableEvents = MutableSharedFlow<AudioRecorderEvent>(extraBufferCapacity = 1)
@@ -13,7 +14,7 @@ class FakeAudioRecorder : AudioRecorder {
 
     var startResult: AudioRecorderResult<Unit> = AudioRecorderResult.Success(Unit)
     var stopResult: AudioRecorderResult<RecordedAudio> = AudioRecorderResult.Success(
-        RecordedAudio(durationMillis = 1_500, byteCount = 48_044),
+        RecordedAudio(file = File("test.wav"), durationMillis = 1_500, byteCount = 48_044),
     )
     var cancelResult: AudioRecorderResult<Unit> = AudioRecorderResult.Success(Unit)
     var discardResult: AudioRecorderResult<Unit> = AudioRecorderResult.Success(Unit)

@@ -2,17 +2,17 @@
 
 ## V1 promise
 
-Recordings stay on the device in the implemented Phase 3 recorder. Transcripts and generated text remain future work. No cloud inference, analytics, advertising SDK, crash-upload SDK, or account is planned. Model downloads are the only planned app-initiated network operation; clipboard/share transfers happen only on explicit user action.
+Recordings and Phase 4 transcripts stay on the device. Generated messages remain future work. No cloud inference, analytics, advertising SDK, crash-upload SDK, or account is planned. Model downloads are the only planned app-initiated network operation; clipboard/share transfers happen only on explicit user action.
 
 ## Microphone and temporary audio
 
 The app requests RECORD_AUDIO at the first recording action and records only while visible, with duration and clear stop/cancel controls. It writes 16 kHz mono 16-bit PCM WAV to `cacheDir/voice_notes_temp` under an opaque random filename. It does not save audio history or export audio.
 
-Phase 3 deletes audio on recording cancellation/interruption, when starting again, and when leaving the recording workflow. A completed recording remains only for the next transcription phase. Recorder and file handles are closed before deletion. The application sweeps files with its private recording prefix at the next launch after process death. Cache files can exist until that sweep; immediate crash-time deletion is not possible. Cleanup failures use safe errors without paths or content. Cache storage is excluded from Android backup by platform behavior and the app's backup configuration.
+The app deletes audio on recording cancellation/interruption, transcription success or terminal failure, transcription cancellation, restart, and leaving the workflow. Recorder, native reader, and file handles close before deletion. The application sweeps files with its private recording prefix at the next launch after process death. Cache files can exist until that sweep; immediate crash-time deletion is not possible. Cleanup failures use safe errors without paths or content. Cache storage is excluded from Android backup by platform behavior and the app's backup configuration.
 
 ## Transcript and message handling
 
-Hold unsaved transcript/results in memory, never in logs, route arguments, notifications, saved-state bundles, or download worker inputs. Successful history entries contain transcript and final editable message plus tone/type/timestamps. Display that storage behavior in first-use/privacy text. Regeneration uses the transcript, never original audio. Failed rewriting leaves the transcript available in the active session; discarding it or process death removes unsaved work.
+Phase 4 holds the unsaved transcript in ViewModel memory, never in logs, route arguments, notifications, saved-state bundles, or worker inputs. Discarding it, leaving the workflow, or process death removes it. Later successful history entries will contain transcript and final editable message plus tone/type/timestamps. Regeneration will use the transcript, never original audio.
 
 ## Local history and settings
 

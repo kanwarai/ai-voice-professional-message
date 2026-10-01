@@ -1,6 +1,8 @@
 package com.kanwarai.voiceprofessionalmessage.presentation
 
 import androidx.lifecycle.SavedStateHandle
+import com.kanwarai.voiceprofessionalmessage.ai.speech.TranscriptionError
+import com.kanwarai.voiceprofessionalmessage.ai.speech.TranscriptionResult
 import com.kanwarai.voiceprofessionalmessage.audio.AudioRecorderError
 import com.kanwarai.voiceprofessionalmessage.audio.AudioRecorderResult
 import com.kanwarai.voiceprofessionalmessage.audio.MAX_RECORDING_DURATION_MILLIS
@@ -33,11 +35,11 @@ class HomeViewModelTest {
     fun selectionsUpdateAndRestoreFromSavedState() = runTest(mainDispatcherRule.testDispatcher) {
         val savedStateHandle = SavedStateHandle()
         val recorder = FakeAudioRecorder()
-        val viewModel = HomeViewModel(savedStateHandle, recorder)
+        val viewModel = HomeViewModel(savedStateHandle, recorder, FakeSpeechToTextEngine())
 
         viewModel.selectMessageType(MessageType.Email)
         viewModel.selectTone(MessageTone.Friendly)
-        val restoredViewModel = HomeViewModel(savedStateHandle, recorder)
+        val restoredViewModel = HomeViewModel(savedStateHandle, recorder, FakeSpeechToTextEngine())
 
         assertEquals(MessageType.Email, restoredViewModel.state.value.messageType)
         assertEquals(MessageTone.Friendly, restoredViewModel.state.value.tone)
@@ -60,9 +62,10 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun startAndStopProduceReadyState() = runTest(mainDispatcherRule.testDispatcher) {
+    fun startStopAndTranscriptionProduceTranscriptState() = runTest(mainDispatcherRule.testDispatcher) {
         val recorder = FakeAudioRecorder()
-        val viewModel = createViewModel(recorder)
+        val speechEngine = FakeSpeechToTextEngine()
+        val viewModel = createViewModel(recorder, speechEngine)
 
         viewModel.startRecording()
         runCurrent()
@@ -73,7 +76,12 @@ class HomeViewModelTest {
 
         assertEquals(1, recorder.startCalls)
         assertEquals(1, recorder.stopCalls)
-        assertEquals(RecordingState.Ready(1_500, 48_044), viewModel.state.value.recordingState)
+        assertEquals(1, speechEngine.transcribeCalls)
+        assertEquals(1, recorder.discardCalls)
+        assertEquals(
+            RecordingState.Transcript("Test transcript", 1_500, 100, 300),
+            viewModel.state.value.recordingState,
+        )
     }
 
     @Test
@@ -149,6 +157,7 @@ class HomeViewModelTest {
         val viewModel = HomeViewModel(
             SavedStateHandle(),
             recorder,
+            FakeSpeechToTextEngine(),
             MonotonicClock { now },
         )
         viewModel.startRecording()
@@ -159,11 +168,45 @@ class HomeViewModelTest {
         runCurrent()
 
         assertEquals(1, recorder.stopCalls)
-        assertTrue(viewModel.state.value.recordingState is RecordingState.Ready)
+        assertTrue(viewModel.state.value.recordingState is RecordingState.Transcript)
         assertEquals(
             "The two-minute limit was reached. Your voice note was stopped safely.",
             viewModel.state.value.notice,
         )
+    }
+
+    @Test
+    fun modelMissingIsHonestAndDeletesAudio() = runTest(mainDispatcherRule.testDispatcher) {
+        val recorder = FakeAudioRecorder()
+        val speechEngine = FakeSpeechToTextEngine().apply {
+            result = TranscriptionResult.Failure(TranscriptionError.ModelMissing)
+        }
+        val viewModel = createViewModel(recorder, speechEngine)
+
+        viewModel.startRecording()
+        runCurrent()
+        viewModel.stopRecording()
+        runCurrent()
+
+        assertEquals(
+            RecordingState.TranscriptionFailed(TranscriptionError.ModelMissing),
+            viewModel.state.value.recordingState,
+        )
+        assertEquals(1, recorder.discardCalls)
+    }
+
+    @Test
+    fun transcriptCanBeCorrectedInMemory() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = createViewModel()
+        viewModel.startRecording()
+        runCurrent()
+        viewModel.stopRecording()
+        runCurrent()
+
+        viewModel.updateTranscript("Corrected transcript")
+
+        val transcript = viewModel.state.value.recordingState as RecordingState.Transcript
+        assertEquals("Corrected transcript", transcript.text)
     }
 
     @Test
@@ -205,9 +248,11 @@ class HomeViewModelTest {
 
     private fun createViewModel(
         recorder: FakeAudioRecorder = FakeAudioRecorder(),
+        speechEngine: FakeSpeechToTextEngine = FakeSpeechToTextEngine(),
     ) = HomeViewModel(
         savedStateHandle = SavedStateHandle(),
         audioRecorder = recorder,
+        speechToTextEngine = speechEngine,
         clock = MonotonicClock { 1_000L },
     )
 }
