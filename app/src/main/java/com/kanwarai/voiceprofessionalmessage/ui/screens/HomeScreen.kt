@@ -1,5 +1,15 @@
 package com.kanwarai.voiceprofessionalmessage.ui.screens
 
+import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -13,35 +23,53 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.kanwarai.voiceprofessionalmessage.VoiceMessageApplication
 import com.kanwarai.voiceprofessionalmessage.presentation.HomeViewModel
 import com.kanwarai.voiceprofessionalmessage.presentation.MessageTone
 import com.kanwarai.voiceprofessionalmessage.presentation.MessageType
+import com.kanwarai.voiceprofessionalmessage.presentation.RecordingState
+import com.kanwarai.voiceprofessionalmessage.presentation.formatRecordingDuration
 import com.kanwarai.voiceprofessionalmessage.ui.components.PrimaryVoiceAction
 import com.kanwarai.voiceprofessionalmessage.ui.components.SegmentedSelector
 
@@ -50,10 +78,58 @@ fun HomeScreen(
     onOpenResult: () -> Unit,
     onOpenHistory: () -> Unit,
     onOpenSettings: () -> Unit,
-    viewModel: HomeViewModel = viewModel(),
 ) {
+    val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
+    val application = context.applicationContext as VoiceMessageApplication
+    val viewModel: HomeViewModel = viewModel(
+        factory = HomeViewModel.factory(application.audioRecorder),
+    )
     val uiState by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        val canAskAgain = granted || ActivityCompat.shouldShowRequestPermissionRationale(
+            activity,
+            Manifest.permission.RECORD_AUDIO,
+        )
+        viewModel.onPermissionResult(granted, canAskAgain)
+    }
+
+    fun requestRecording() {
+        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            viewModel.startRecording()
+        } else {
+            viewModel.onPermissionRequestStarted()
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, activity) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME &&
+                context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                viewModel.onPermissionAvailable()
+            }
+            if (event == Lifecycle.Event.ON_STOP && !activity.isChangingConfigurations) {
+                viewModel.onAppBackgrounded()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            if (!activity.isChangingConfigurations) {
+                viewModel.onWorkflowLeft()
+            }
+        }
+    }
 
     LaunchedEffect(uiState.notice) {
         val notice = uiState.notice ?: return@LaunchedEffect
@@ -65,6 +141,7 @@ fun HomeScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             HomeNavigationBar(
+                enabled = uiState.configurationEnabled,
                 onOpenHistory = onOpenHistory,
                 onOpenSettings = onOpenSettings,
             )
@@ -90,12 +167,19 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         BrandAndRecord(
-                            onRecord = viewModel::onRecordSelected,
+                            recordingState = uiState.recordingState,
+                            onRecord = ::requestRecording,
+                            onStop = viewModel::stopRecording,
+                            onCancel = { viewModel.cancelRecording() },
+                            onDelete = viewModel::discardRecording,
+                            onDismissError = viewModel::dismissError,
+                            onOpenSettings = { context.openAppSettings() },
                             modifier = Modifier.weight(1f),
                         )
                         ConfigurationPanel(
                             selectedType = uiState.messageType,
                             selectedTone = uiState.tone,
+                            enabled = uiState.configurationEnabled,
                             onTypeSelected = viewModel::selectMessageType,
                             onToneSelected = viewModel::selectTone,
                             onOpenResult = onOpenResult,
@@ -107,10 +191,19 @@ fun HomeScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(32.dp),
                     ) {
-                        BrandAndRecord(onRecord = viewModel::onRecordSelected)
+                        BrandAndRecord(
+                            recordingState = uiState.recordingState,
+                            onRecord = ::requestRecording,
+                            onStop = viewModel::stopRecording,
+                            onCancel = { viewModel.cancelRecording() },
+                            onDelete = viewModel::discardRecording,
+                            onDismissError = viewModel::dismissError,
+                            onOpenSettings = { context.openAppSettings() },
+                        )
                         ConfigurationPanel(
                             selectedType = uiState.messageType,
                             selectedTone = uiState.tone,
+                            enabled = uiState.configurationEnabled,
                             onTypeSelected = viewModel::selectMessageType,
                             onToneSelected = viewModel::selectTone,
                             onOpenResult = onOpenResult,
@@ -124,7 +217,13 @@ fun HomeScreen(
 
 @Composable
 private fun BrandAndRecord(
+    recordingState: RecordingState,
     onRecord: () -> Unit,
+    onStop: () -> Unit,
+    onCancel: () -> Unit,
+    onDelete: () -> Unit,
+    onDismissError: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -145,8 +244,14 @@ private fun BrandAndRecord(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
-        PrimaryVoiceAction(
-            onClick = onRecord,
+        RecordingControl(
+            recordingState = recordingState,
+            onRecord = onRecord,
+            onStop = onStop,
+            onCancel = onCancel,
+            onDelete = onDelete,
+            onDismissError = onDismissError,
+            onOpenSettings = onOpenSettings,
             modifier = Modifier.padding(top = 20.dp),
         )
         Row(
@@ -169,9 +274,158 @@ private fun BrandAndRecord(
 }
 
 @Composable
+private fun RecordingControl(
+    recordingState: RecordingState,
+    onRecord: () -> Unit,
+    onStop: () -> Unit,
+    onCancel: () -> Unit,
+    onDelete: () -> Unit,
+    onDismissError: () -> Unit,
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        when (recordingState) {
+            RecordingState.Idle -> PrimaryVoiceAction(onClick = onRecord)
+            RecordingState.RequestingPermission -> ProgressState("Waiting for microphone permission…")
+            RecordingState.Starting -> ProgressState("Preparing microphone…")
+            is RecordingState.Recording -> {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(text = "●", color = Color(0xFFB3261E))
+                    Text(
+                        text = "Recording",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                Text(
+                    text = formatRecordingDuration(recordingState.elapsedMillis),
+                    modifier = Modifier.semantics {
+                        contentDescription = "Elapsed recording time ${formatRecordingDuration(recordingState.elapsedMillis)}"
+                    },
+                    style = MaterialTheme.typography.displaySmall,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = onCancel,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Cancel")
+                    }
+                    Button(
+                        onClick = onStop,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Stop")
+                    }
+                }
+            }
+            is RecordingState.Stopping -> ProgressState(
+                "Finalizing ${formatRecordingDuration(recordingState.elapsedMillis)} voice note…",
+            )
+            is RecordingState.Ready -> {
+                Icon(
+                    imageVector = Icons.Outlined.CheckCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = "Voice note recorded.",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = "${formatRecordingDuration(recordingState.durationMillis)} · Transcription will be added in Phase 4.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = onDelete,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Outlined.Delete, contentDescription = null)
+                        Text("Delete", modifier = Modifier.padding(start = 6.dp))
+                    }
+                    Button(
+                        onClick = onRecord,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Outlined.Refresh, contentDescription = null)
+                        Text("Record again", modifier = Modifier.padding(start = 6.dp))
+                    }
+                }
+            }
+            is RecordingState.PermissionDenied -> {
+                Icon(Icons.Outlined.Warning, contentDescription = null)
+                Text(
+                    text = "Microphone permission needed",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = if (recordingState.permanently) {
+                        "Allow microphone access in Android settings to record a voice note."
+                    } else {
+                        "Microphone access is required only while you record. You can try again."
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Button(onClick = if (recordingState.permanently) onOpenSettings else onRecord) {
+                    Text(if (recordingState.permanently) "Open app settings" else "Try again")
+                }
+                TextButton(onClick = onDismissError) { Text("Not now") }
+            }
+            is RecordingState.Error -> {
+                Icon(Icons.Outlined.Warning, contentDescription = null)
+                Text(
+                    text = "Recording problem",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = recordingState.message,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Button(onClick = onDismissError) { Text("Try again") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProgressState(message: String) {
+    CircularProgressIndicator()
+    Text(
+        text = message,
+        style = MaterialTheme.typography.titleMedium,
+        textAlign = TextAlign.Center,
+    )
+}
+
+@Composable
 private fun ConfigurationPanel(
     selectedType: MessageType,
     selectedTone: MessageTone,
+    enabled: Boolean,
     onTypeSelected: (MessageType) -> Unit,
     onToneSelected: (MessageTone) -> Unit,
     onOpenResult: () -> Unit,
@@ -187,6 +441,7 @@ private fun ConfigurationPanel(
             selectedOption = selectedType,
             optionLabel = MessageType::label,
             onOptionSelected = onTypeSelected,
+            enabled = enabled,
         )
         SegmentedSelector(
             title = "Tone",
@@ -194,9 +449,11 @@ private fun ConfigurationPanel(
             selectedOption = selectedTone,
             optionLabel = MessageTone::label,
             onOptionSelected = onToneSelected,
+            enabled = enabled,
         )
         TextButton(
             onClick = onOpenResult,
+            enabled = enabled,
             modifier = Modifier.align(Alignment.End),
         ) {
             Icon(Icons.AutoMirrored.Outlined.Article, contentDescription = null)
@@ -207,6 +464,7 @@ private fun ConfigurationPanel(
 
 @Composable
 private fun HomeNavigationBar(
+    enabled: Boolean,
     onOpenHistory: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
@@ -214,20 +472,38 @@ private fun HomeNavigationBar(
         NavigationBarItem(
             selected = true,
             onClick = {},
+            enabled = enabled,
             icon = { Icon(Icons.Outlined.Home, contentDescription = null) },
             label = { Text("Home") },
         )
         NavigationBarItem(
             selected = false,
             onClick = onOpenHistory,
+            enabled = enabled,
             icon = { Icon(Icons.Outlined.History, contentDescription = null) },
             label = { Text("History") },
         )
         NavigationBarItem(
             selected = false,
             onClick = onOpenSettings,
+            enabled = enabled,
             icon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
             label = { Text("Settings") },
         )
     }
+}
+
+private tailrec fun Context.findActivity(): Activity = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> error("Home screen requires an Activity context")
+}
+
+private fun Context.openAppSettings() {
+    startActivity(
+        Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.fromParts("package", packageName, null),
+        ),
+    )
 }

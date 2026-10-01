@@ -1,18 +1,26 @@
 package com.kanwarai.voiceprofessionalmessage
 
+import android.Manifest
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.espresso.Espresso.pressBack
+import androidx.test.rule.GrantPermissionRule
 import org.junit.Rule
+import org.junit.rules.RuleChain
 import org.junit.Test
 
 class NavigationSmokeTest {
+    private val permissionRule = GrantPermissionRule.grant(Manifest.permission.RECORD_AUDIO)
+    private val composeRule = createAndroidComposeRule<MainActivity>()
+
     @get:Rule
-    val composeRule = createAndroidComposeRule<MainActivity>()
+    val ruleChain: RuleChain = RuleChain.outerRule(permissionRule).around(composeRule)
 
     @Test
     fun homeRendersAndSelectionsChange() {
@@ -23,11 +31,21 @@ class NavigationSmokeTest {
         composeRule.onNodeWithText("Email").performClick().assertIsSelected()
         composeRule.onNodeWithText("Friendly").performClick().assertIsSelected()
 
-        composeRule.onNodeWithContentDescription(
-            "Record voice note. Available in Phase 3.",
-        ).performClick()
-        composeRule.onNodeWithText("Voice recording will be added in Phase 3.")
-            .assertIsDisplayed()
+    }
+
+    @Test
+    fun grantedPermissionShowsRealRecordingAndCancelStates() {
+        composeRule.onNodeWithContentDescription("Record voice note").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Recording").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("Recording").assertIsDisplayed()
+        composeRule.onNodeWithText("Cancel").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithContentDescription("Record voice note")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithContentDescription("Record voice note").assertIsDisplayed()
     }
 
     @Test

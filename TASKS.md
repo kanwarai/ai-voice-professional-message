@@ -33,11 +33,12 @@ Checked means completed and reviewed. Each implementation phase requires a succe
 
 ## Phase 3 — Audio recording
 
-- [ ] Implement contextual permission request and permanent-denial recovery.
-- [ ] Capture bounded PCM/WAV, timer, stop, cancel, errors, and sample normalization.
-- [ ] Handle rotation, backgrounding, calls, permission revocation, and recorder release.
-- [ ] Implement terminal cleanup and startup stale-audio sweep.
-- [ ] Test real microphone and failures, build, self-review/commit.
+- [x] Implement contextual permission request and permanent-denial recovery.
+- [x] Capture bounded 16 kHz mono PCM/WAV, timer, stop, cancel, and typed errors; the captured PCM already matches the later STT input, so no resampling or amplitude normalization is applied.
+- [x] Preserve recording across activity recreation, cancel on background/navigation, surface microphone interruption, re-check permission, and release recorder resources.
+- [x] Implement terminal cleanup and startup stale-audio sweep in private cache.
+- [x] Pass 17 unit tests, clean debug/device-test APK builds, lint, manifest-permission inspection, log/privacy scans, and self-review.
+- [ ] Execute the compiled real-microphone, interruption, and device lifecycle tests; ADB reported no connected emulator or physical device.
 
 ## Phase 4 — Speech-to-text
 

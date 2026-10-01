@@ -39,6 +39,7 @@ fun <T> SegmentedSelector(
     optionLabel: (T) -> String,
     onOptionSelected: (T) -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
@@ -54,6 +55,7 @@ fun <T> SegmentedSelector(
                         SelectorOption(
                             label = optionLabel(option),
                             selected = option == selectedOption,
+                            enabled = enabled,
                             onClick = { onOptionSelected(option) },
                         )
                     }
@@ -64,6 +66,7 @@ fun <T> SegmentedSelector(
                         SelectorOption(
                             label = optionLabel(option),
                             selected = option == selectedOption,
+                            enabled = enabled,
                             onClick = { onOptionSelected(option) },
                             modifier = Modifier.weight(1f),
                         )
@@ -78,25 +81,28 @@ fun <T> SegmentedSelector(
 private fun RowScope.SelectorOption(
     label: String,
     selected: Boolean,
+    enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    SelectorOptionContent(label, selected, onClick, modifier)
+    SelectorOptionContent(label, selected, enabled, onClick, modifier)
 }
 
 @Composable
 private fun SelectorOption(
     label: String,
     selected: Boolean,
+    enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    SelectorOptionContent(label, selected, onClick, Modifier.fillMaxWidth())
+    SelectorOptionContent(label, selected, enabled, onClick, Modifier.fillMaxWidth())
 }
 
 @Composable
 private fun SelectorOptionContent(
     label: String,
     selected: Boolean,
+    enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier,
 ) {
@@ -105,6 +111,7 @@ private fun SelectorOptionContent(
             .defaultMinSize(minHeight = 48.dp)
             .selectable(
                 selected = selected,
+                enabled = enabled,
                 onClick = onClick,
                 role = Role.RadioButton,
             ),
@@ -114,7 +121,9 @@ private fun SelectorOptionContent(
         } else {
             MaterialTheme.colorScheme.surface
         },
-        contentColor = if (selected) {
+        contentColor = if (!enabled) {
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+        } else if (selected) {
             MaterialTheme.colorScheme.onPrimaryContainer
         } else {
             MaterialTheme.colorScheme.onSurface
@@ -153,7 +162,7 @@ fun PrimaryVoiceAction(
                 .size(104.dp)
                 .semantics {
                     // The icon is decorative; this describes the complete action and status.
-                    this.contentDescription = "Record voice note. Available in Phase 3."
+                    this.contentDescription = "Record voice note"
                 },
         ) {
             Icon(
@@ -168,7 +177,7 @@ fun PrimaryVoiceAction(
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = "Recording becomes available in Phase 3.",
+            text = "Up to two minutes. Recording stays on this device.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

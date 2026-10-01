@@ -2,13 +2,13 @@
 
 ## V1 promise
 
-Recordings, transcripts, and generated text stay on the device. No cloud inference, analytics, advertising SDK, crash-upload SDK, or account is planned. Model downloads are the only app-initiated network operation; clipboard/share transfers happen only on explicit user action. This is a design specification, not a claim about an implemented app.
+Recordings stay on the device in the implemented Phase 3 recorder. Transcripts and generated text remain future work. No cloud inference, analytics, advertising SDK, crash-upload SDK, or account is planned. Model downloads are the only planned app-initiated network operation; clipboard/share transfers happen only on explicit user action.
 
 ## Microphone and temporary audio
 
-Request RECORD_AUDIO at first recording action. Record only while the app is visible, with duration and clear stop/cancel controls. Use a private cache WAV file with a random filename containing no personal information. Do not save audio history or export audio in V1.
+The app requests RECORD_AUDIO at the first recording action and records only while visible, with duration and clear stop/cancel controls. It writes 16 kHz mono 16-bit PCM WAV to `cacheDir/voice_notes_temp` under an opaque random filename. It does not save audio history or export audio.
 
-Delete audio after successful transcription, terminal transcription failure, recording cancellation/interruption, timeout, or navigation cancellation. Retain it only during active transcription, not for rewrite regeneration. Always close recorder/file/native readers before deletion. If the app crashes, sweep stale audio at the next launch before accepting new recordings. Cache files may exist until that sweep after process death; do not promise immediate crash-time deletion. Report cleanup failures with safe codes and retry later. Temporary audio is excluded from backup.
+Phase 3 deletes audio on recording cancellation/interruption, when starting again, and when leaving the recording workflow. A completed recording remains only for the next transcription phase. Recorder and file handles are closed before deletion. The application sweeps files with its private recording prefix at the next launch after process death. Cache files can exist until that sweep; immediate crash-time deletion is not possible. Cleanup failures use safe errors without paths or content. Cache storage is excluded from Android backup by platform behavior and the app's backup configuration.
 
 ## Transcript and message handling
 

@@ -74,7 +74,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodyLarge,
             )
             Text(
-                text = "This UI does not record audio, connect to AI services, or store messages yet.",
+                text = "Voice notes are recorded only on request, kept temporarily in private app cache, and never sent to a service. AI and message history are not available yet.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

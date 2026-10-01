@@ -16,6 +16,8 @@ captures/
 # Generated packages
 *.apk
 *.aab
+*.wav
+*.pcm
 
 # Signing material and secrets
 *.jks
