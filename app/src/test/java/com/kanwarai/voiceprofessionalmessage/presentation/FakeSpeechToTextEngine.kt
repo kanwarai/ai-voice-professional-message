@@ -3,6 +3,7 @@ package com.kanwarai.voiceprofessionalmessage.presentation
 import com.kanwarai.voiceprofessionalmessage.ai.speech.SpeechToTextEngine
 import com.kanwarai.voiceprofessionalmessage.ai.speech.TranscriptionResult
 import com.kanwarai.voiceprofessionalmessage.audio.RecordedAudio
+import kotlinx.coroutines.CompletableDeferred
 
 class FakeSpeechToTextEngine : SpeechToTextEngine {
     var result: TranscriptionResult = TranscriptionResult.Success(
@@ -14,9 +15,13 @@ class FakeSpeechToTextEngine : SpeechToTextEngine {
     var transcribeCalls = 0
     var cancelCalls = 0
     var releaseCalls = 0
+    var gate: CompletableDeferred<Unit>? = null
+    val started = CompletableDeferred<Unit>()
 
     override suspend fun transcribe(audio: RecordedAudio): TranscriptionResult {
         transcribeCalls += 1
+        started.complete(Unit)
+        gate?.await()
         return result
     }
 

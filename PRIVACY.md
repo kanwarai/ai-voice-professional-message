@@ -26,7 +26,7 @@ Delete one entry or clear all after confirmation, remove it from visible state, 
 
 Do not log audio, transcripts, output tokens, private messages, secrets, or payload-bearing exceptions in Kotlin or C++. Disable upstream printing/verbose native logging; sanitize error callbacks. Diagnostics may include stage, safe error code, model version, and non-content timing/memory metrics locally. Tests use synthetic/consented material and private artifacts stay out of Git.
 
-Copy transfers the message to Android's clipboard, which is outside the app's storage control. Share transfers only final text to the app the user chooses; that app may upload it. Explain this at relevant actions without claiming continued control over copies. Deletion here cannot recall shared text or erase another app's clipboard/history. No automatic message sending.
+Copy occurs only after an explicit tap and transfers only the current visible final message to Android's clipboard, which is outside the app's storage control. Share occurs only after an explicit tap and opens Android's standard chooser with that text as `text/plain`; the selected app may upload or retain it. Neither action includes the transcript, audio, metrics, model paths, or hidden state. Deletion here cannot recall shared text or erase another app's clipboard/history. There is no automatic copy, share, or message sending.
 
 ## Permissions and networking
 

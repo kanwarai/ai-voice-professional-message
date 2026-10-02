@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -52,6 +53,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -166,6 +169,8 @@ fun HomeScreen(
                     ) {
                         BrandAndRecord(
                             recordingState = uiState.recordingState,
+                            messageType = uiState.messageType,
+                            tone = uiState.tone,
                             onRecord = ::requestRecording,
                             onStop = viewModel::stopRecording,
                             onCancel = { viewModel.cancelRecording() },
@@ -173,6 +178,21 @@ fun HomeScreen(
                             onDeleteTranscript = viewModel::discardTranscript,
                             onTranscriptChanged = viewModel::updateTranscript,
                             onRewrite = viewModel::rewriteMessage,
+                            onMessageChanged = viewModel::updateMessage,
+                            onRegenerate = viewModel::requestRegenerate,
+                            onConfirmRegenerate = viewModel::confirmRegenerate,
+                            onDismissRegenerate = viewModel::dismissRegenerateConfirmation,
+                            onCopy = {
+                                viewModel.finalMessagePayload()?.let(::externalMessagePayload)?.let { payload ->
+                                    if (context.copyMessage(payload)) viewModel.onMessageCopied() else viewModel.onCopyFailed()
+                                }
+                            },
+                            onShare = {
+                                val shared = viewModel.finalMessagePayload()?.let(::externalMessagePayload)
+                                    ?.let(context::openShareSheet) == true
+                                if (!shared) viewModel.onShareFailed()
+                            },
+                            onStartOver = viewModel::startOver,
                             onCancelRewrite = { viewModel.cancelRewrite() },
                             onBackToTranscript = viewModel::backToTranscript,
                             onDismissError = viewModel::dismissError,
@@ -196,6 +216,8 @@ fun HomeScreen(
                     ) {
                         BrandAndRecord(
                             recordingState = uiState.recordingState,
+                            messageType = uiState.messageType,
+                            tone = uiState.tone,
                             onRecord = ::requestRecording,
                             onStop = viewModel::stopRecording,
                             onCancel = { viewModel.cancelRecording() },
@@ -203,6 +225,21 @@ fun HomeScreen(
                             onDeleteTranscript = viewModel::discardTranscript,
                             onTranscriptChanged = viewModel::updateTranscript,
                             onRewrite = viewModel::rewriteMessage,
+                            onMessageChanged = viewModel::updateMessage,
+                            onRegenerate = viewModel::requestRegenerate,
+                            onConfirmRegenerate = viewModel::confirmRegenerate,
+                            onDismissRegenerate = viewModel::dismissRegenerateConfirmation,
+                            onCopy = {
+                                viewModel.finalMessagePayload()?.let(::externalMessagePayload)?.let { payload ->
+                                    if (context.copyMessage(payload)) viewModel.onMessageCopied() else viewModel.onCopyFailed()
+                                }
+                            },
+                            onShare = {
+                                val shared = viewModel.finalMessagePayload()?.let(::externalMessagePayload)
+                                    ?.let(context::openShareSheet) == true
+                                if (!shared) viewModel.onShareFailed()
+                            },
+                            onStartOver = viewModel::startOver,
                             onCancelRewrite = { viewModel.cancelRewrite() },
                             onBackToTranscript = viewModel::backToTranscript,
                             onDismissError = viewModel::dismissError,
@@ -226,6 +263,8 @@ fun HomeScreen(
 @Composable
 private fun BrandAndRecord(
     recordingState: RecordingState,
+    messageType: MessageType,
+    tone: MessageTone,
     onRecord: () -> Unit,
     onStop: () -> Unit,
     onCancel: () -> Unit,
@@ -233,6 +272,13 @@ private fun BrandAndRecord(
     onDeleteTranscript: () -> Unit,
     onTranscriptChanged: (String) -> Unit,
     onRewrite: () -> Unit,
+    onMessageChanged: (String) -> Unit,
+    onRegenerate: () -> Unit,
+    onConfirmRegenerate: () -> Unit,
+    onDismissRegenerate: () -> Unit,
+    onCopy: () -> Unit,
+    onShare: () -> Unit,
+    onStartOver: () -> Unit,
     onCancelRewrite: () -> Unit,
     onBackToTranscript: () -> Unit,
     onDismissError: () -> Unit,
@@ -259,6 +305,8 @@ private fun BrandAndRecord(
         )
         RecordingControl(
             recordingState = recordingState,
+            messageType = messageType,
+            tone = tone,
             onRecord = onRecord,
             onStop = onStop,
             onCancel = onCancel,
@@ -266,6 +314,13 @@ private fun BrandAndRecord(
             onDeleteTranscript = onDeleteTranscript,
             onTranscriptChanged = onTranscriptChanged,
             onRewrite = onRewrite,
+            onMessageChanged = onMessageChanged,
+            onRegenerate = onRegenerate,
+            onConfirmRegenerate = onConfirmRegenerate,
+            onDismissRegenerate = onDismissRegenerate,
+            onCopy = onCopy,
+            onShare = onShare,
+            onStartOver = onStartOver,
             onCancelRewrite = onCancelRewrite,
             onBackToTranscript = onBackToTranscript,
             onDismissError = onDismissError,
@@ -294,6 +349,8 @@ private fun BrandAndRecord(
 @Composable
 private fun RecordingControl(
     recordingState: RecordingState,
+    messageType: MessageType,
+    tone: MessageTone,
     onRecord: () -> Unit,
     onStop: () -> Unit,
     onCancel: () -> Unit,
@@ -301,6 +358,13 @@ private fun RecordingControl(
     onDeleteTranscript: () -> Unit,
     onTranscriptChanged: (String) -> Unit,
     onRewrite: () -> Unit,
+    onMessageChanged: (String) -> Unit,
+    onRegenerate: () -> Unit,
+    onConfirmRegenerate: () -> Unit,
+    onDismissRegenerate: () -> Unit,
+    onCopy: () -> Unit,
+    onShare: () -> Unit,
+    onStartOver: () -> Unit,
     onCancelRewrite: () -> Unit,
     onBackToTranscript: () -> Unit,
     onDismissError: () -> Unit,
@@ -357,7 +421,7 @@ private fun RecordingControl(
                 "Finalizing ${formatRecordingDuration(recordingState.elapsedMillis)} voice note…",
             )
             is RecordingState.Transcribing -> {
-                ProgressState("Transcribing voice note…")
+                ProgressState("Transcribing your voice note…")
                 Text(
                     text = "Audio stays on this device.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -366,10 +430,15 @@ private fun RecordingControl(
             }
             is RecordingState.Transcript -> {
                 Text(
-                    text = "Transcript",
+                    text = "Review transcript",
                     modifier = Modifier.semantics { heading() },
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "Check the transcript before creating your message.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
                 )
                 OutlinedTextField(
                     value = recordingState.text,
@@ -379,7 +448,7 @@ private fun RecordingControl(
                     minLines = 4,
                 )
                 Button(onClick = onRewrite, enabled = recordingState.text.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
-                    Text("Rewrite message")
+                    Text("Create message")
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -395,22 +464,40 @@ private fun RecordingControl(
                 }
             }
             is RecordingState.Rewriting -> {
-                ProgressState("Polishing message locally…")
+                ProgressState("Polishing your message…")
                 Text("The writing model runs only on this device.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedButton(onClick = onCancelRewrite) { Text("Cancel rewrite") }
             }
             is RecordingState.Rewritten -> {
-                Text("Rewritten message", modifier = Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-                Text(recordingState.message, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodyLarge)
-                Text("Original transcript", style = MaterialTheme.typography.titleMedium)
-                Text(recordingState.transcript.text, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onBackToTranscript, modifier = Modifier.weight(1f)) { Text("Back") }
-                    Button(onClick = onRewrite, modifier = Modifier.weight(1f)) { Text("Retry") }
+                Text("Your message", modifier = Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                Text("${messageType.label} · ${tone.label}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value = recordingState.message,
+                    onValueChange = onMessageChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Final message") },
+                    minLines = 5,
+                )
+                if (recordingState.isEdited) {
+                    Text("Edited", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = onDeleteTranscript, modifier = Modifier.weight(1f)) { Text("Discard") }
-                    OutlinedButton(onClick = onRecord, modifier = Modifier.weight(1f)) { Text("Record again") }
+                    Button(onClick = onCopy, enabled = recordingState.message.isNotBlank(), modifier = Modifier.weight(1f)) { Text("Copy") }
+                    Button(onClick = onShare, enabled = recordingState.message.isNotBlank(), modifier = Modifier.weight(1f)) { Text("Share") }
+                }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onBackToTranscript, modifier = Modifier.weight(1f)) { Text("Edit transcript") }
+                    OutlinedButton(onClick = onRegenerate, modifier = Modifier.weight(1f)) { Text("Regenerate") }
+                }
+                TextButton(onClick = onStartOver) { Text("Start over") }
+                if (recordingState.regenerateConfirmationRequired) {
+                    AlertDialog(
+                        onDismissRequest = onDismissRegenerate,
+                        title = { Text("Regenerate message?") },
+                        text = { Text("Your current edits will be replaced.") },
+                        confirmButton = { TextButton(onClick = onConfirmRegenerate) { Text("Regenerate") } },
+                        dismissButton = { TextButton(onClick = onDismissRegenerate) { Text("Cancel") } },
+                    )
                 }
             }
             is RecordingState.RewriteFailed -> {
@@ -488,6 +575,7 @@ private fun ProgressState(message: String) {
     CircularProgressIndicator()
     Text(
         text = message,
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         style = MaterialTheme.typography.titleMedium,
         textAlign = TextAlign.Center,
     )

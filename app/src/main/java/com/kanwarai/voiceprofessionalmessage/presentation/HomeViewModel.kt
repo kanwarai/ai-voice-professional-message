@@ -27,12 +27,15 @@ import com.kanwarai.voiceprofessionalmessage.audio.AudioRecorderResult
 import com.kanwarai.voiceprofessionalmessage.audio.MAX_RECORDING_DURATION_MILLIS
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 data class HomeUiState(
@@ -44,6 +47,7 @@ data class HomeUiState(
     val configurationEnabled: Boolean
         get() = recordingState is RecordingState.Idle ||
             recordingState is RecordingState.Transcript ||
+            recordingState is RecordingState.Rewritten ||
             recordingState is RecordingState.RewriteFailed ||
             recordingState is RecordingState.TranscriptionFailed ||
             recordingState is RecordingState.PermissionDenied ||
@@ -63,8 +67,16 @@ sealed interface RecordingState {
         val modelLoadMillis: Long,
         val transcriptionMillis: Long,
     ) : RecordingState
-    data class Rewriting(val transcript: Transcript) : RecordingState
-    data class Rewritten(val transcript: Transcript, val message: String, val metrics: RewriteMetrics) : RecordingState
+    data class Rewriting(val transcript: Transcript, val previous: Rewritten? = null) : RecordingState
+    data class Rewritten(
+        val transcript: Transcript,
+        val message: String,
+        val generatedMessage: String,
+        val metrics: RewriteMetrics,
+        val regenerateConfirmationRequired: Boolean = false,
+    ) : RecordingState {
+        val isEdited: Boolean get() = message != generatedMessage
+    }
     data class RewriteFailed(val transcript: Transcript, val error: RewriteError) : RecordingState
     data class TranscriptionFailed(val error: TranscriptionError) : RecordingState
     data class PermissionDenied(val permanently: Boolean) : RecordingState
@@ -109,6 +121,7 @@ class HomeViewModel(
     private var recordingStartedAtMillis = 0L
     private var timerJob: Job? = null
     private var operationJob: Job? = null
+    private val inferenceMutex = Mutex()
 
     init {
         viewModelScope.launch {
@@ -243,37 +256,141 @@ class HomeViewModel(
 
     fun rewriteMessage() {
         if (operationJob?.isActive == true) return
-        val transcript = when (val current = mutableState.value.recordingState) {
+        val currentState = mutableState.value.recordingState
+        val transcript = when (val current = currentState) {
             is RecordingState.Transcript -> current
             is RecordingState.Rewritten -> current.transcript
             is RecordingState.RewriteFailed -> current.transcript
             else -> return
         }
-        mutableState.value = mutableState.value.copy(recordingState = RecordingState.Rewriting(transcript), notice = null)
+        val previous = currentState as? RecordingState.Rewritten
+        mutableState.value = mutableState.value.copy(
+            recordingState = RecordingState.Rewriting(transcript, previous),
+            notice = null,
+        )
         operationJob = viewModelScope.launch {
-            // Enforce the sequential memory policy before loading Qwen.
-            speechToTextEngine.release()
-            val request = RewriteRequest(
-                transcript = transcript.text,
-                messageType = RewriteMessageType.valueOf(mutableState.value.messageType.name),
-                tone = RewriteTone.valueOf(mutableState.value.tone.name),
-            )
-            when (val result = rewriteEngine.rewrite(request)) {
-                is RewriteResult.Success -> mutableState.value = mutableState.value.copy(
-                    recordingState = RecordingState.Rewritten(transcript, result.message, result.metrics),
+            inferenceMutex.withLock {
+                // Release Whisper before Qwen can create its only native context.
+                speechToTextEngine.release()
+                val request = RewriteRequest(
+                    transcript = transcript.text,
+                    messageType = RewriteMessageType.valueOf(mutableState.value.messageType.name),
+                    tone = RewriteTone.valueOf(mutableState.value.tone.name),
                 )
-                is RewriteResult.Failure -> if (result.error != RewriteError.Cancelled) {
-                    mutableState.value = mutableState.value.copy(recordingState = RecordingState.RewriteFailed(transcript, result.error))
+                try {
+                    when (val result = rewriteEngine.rewrite(request)) {
+                        is RewriteResult.Success -> mutableState.value = mutableState.value.copy(
+                            recordingState = RecordingState.Rewritten(
+                                transcript = transcript,
+                                message = result.message,
+                                generatedMessage = result.message,
+                                metrics = result.metrics,
+                            ),
+                        )
+                        is RewriteResult.Failure -> if (result.error != RewriteError.Cancelled) {
+                            mutableState.value = if (previous != null) {
+                                mutableState.value.copy(
+                                    recordingState = previous.copy(regenerateConfirmationRequired = false),
+                                    notice = result.error.userMessage,
+                                )
+                            } else {
+                                mutableState.value.copy(
+                                    recordingState = RecordingState.RewriteFailed(transcript, result.error),
+                                )
+                            }
+                        }
+                    }
+                } finally {
+                    rewriteEngine.release()
                 }
             }
         }
+    }
+
+    fun updateMessage(text: String) {
+        val current = mutableState.value.recordingState as? RecordingState.Rewritten ?: return
+        mutableState.value = mutableState.value.copy(
+            recordingState = current.copy(
+                message = text.take(MAX_MESSAGE_CHARACTERS),
+                regenerateConfirmationRequired = false,
+            ),
+        )
+    }
+
+    fun requestRegenerate() {
+        val current = mutableState.value.recordingState as? RecordingState.Rewritten ?: return
+        if (current.isEdited) {
+            mutableState.value = mutableState.value.copy(
+                recordingState = current.copy(regenerateConfirmationRequired = true),
+            )
+        } else {
+            rewriteMessage()
+        }
+    }
+
+    fun dismissRegenerateConfirmation() {
+        val current = mutableState.value.recordingState as? RecordingState.Rewritten ?: return
+        mutableState.value = mutableState.value.copy(
+            recordingState = current.copy(regenerateConfirmationRequired = false),
+        )
+    }
+
+    fun confirmRegenerate() {
+        val current = mutableState.value.recordingState as? RecordingState.Rewritten ?: return
+        mutableState.value = mutableState.value.copy(
+            recordingState = current.copy(regenerateConfirmationRequired = false),
+        )
+        rewriteMessage()
+    }
+
+    fun finalMessagePayload(): String? =
+        (mutableState.value.recordingState as? RecordingState.Rewritten)?.message?.takeIf(String::isNotBlank)
+
+    fun onMessageCopied() {
+        if (finalMessagePayload() != null) {
+            mutableState.value = mutableState.value.copy(notice = "Message copied")
+        }
+    }
+
+    fun onCopyFailed() {
+        mutableState.value = mutableState.value.copy(notice = "We couldn't copy the message.")
+    }
+
+    fun onShareFailed() {
+        mutableState.value = mutableState.value.copy(notice = "We couldn't open the share sheet.")
+    }
+
+    fun startOver() {
+        timerJob?.cancel()
+        when (mutableState.value.recordingState) {
+            is RecordingState.Recording,
+            is RecordingState.Starting,
+            is RecordingState.Stopping,
+            -> Unit
+            is RecordingState.Transcribing -> speechToTextEngine.cancel()
+            is RecordingState.Rewriting -> rewriteEngine.cancel()
+            else -> Unit
+        }
+        val activeOperation = operationJob
+        activeOperation?.cancel()
+        operationJob = viewModelScope.launch {
+            activeOperation?.join()
+            audioRecorder.cancel()
+            audioRecorder.discardCompleted()
+            speechToTextEngine.release()
+            rewriteEngine.release()
+        }
+        mutableState.value = mutableState.value.copy(recordingState = RecordingState.Idle, notice = null)
     }
 
     fun cancelRewrite(message: String? = null) {
         val current = mutableState.value.recordingState as? RecordingState.Rewriting ?: return
         rewriteEngine.cancel()
         operationJob?.cancel()
-        mutableState.value = mutableState.value.copy(recordingState = current.transcript, notice = message)
+        mutableState.value = mutableState.value.copy(
+            recordingState = current.previous ?: current.transcript,
+            notice = message,
+        )
     }
 
     fun backToTranscript() {
@@ -345,9 +462,10 @@ class HomeViewModel(
 
     override fun onCleared() {
         timerJob?.cancel()
-        operationJob?.cancel()
         runBlocking {
             speechToTextEngine.cancel()
+            rewriteEngine.cancel()
+            operationJob?.cancelAndJoin()
             audioRecorder.cancel()
             audioRecorder.discardCompleted()
         }
@@ -394,7 +512,13 @@ class HomeViewModel(
                         },
                     )
                     try {
-                        when (val transcription = speechToTextEngine.transcribe(result.value)) {
+                        when (val transcription = inferenceMutex.withLock {
+                            try {
+                                speechToTextEngine.transcribe(result.value)
+                            } finally {
+                                speechToTextEngine.release()
+                            }
+                        }) {
                             is TranscriptionResult.Success -> {
                                 mutableState.value = mutableState.value.copy(
                                     recordingState = RecordingState.Transcript(
@@ -441,6 +565,7 @@ class HomeViewModel(
         private const val PERMISSION_REQUESTED_KEY = "microphone_permission_requested"
         private const val TIMER_UPDATE_MILLIS = 250L
         private const val MAX_TRANSCRIPT_CHARACTERS = 12_000
+        private const val MAX_MESSAGE_CHARACTERS = 12_000
 
         fun factory(audioRecorder: AudioRecorder, context: Context) = viewModelFactory {
             initializer {

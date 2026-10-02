@@ -4,7 +4,7 @@ Speak naturally, then review a clean message you can edit, copy, or share.
 
 ## Current status
 
-Phase 5 local rewriting is implemented (2 October 2026). After transcription, an explicit Rewrite message action releases Whisper and runs a manually installed Qwen3-0.6B model through llama.cpp off the UI thread. The original transcript remains visible beside the validated generated text. Copy, share, final-result integration, history, model downloads, and persistent settings remain intentionally unavailable until their planned phases.
+Phase 6 connects the complete memory-only workflow (2 October 2026): record, automatic local transcription, editable transcript review, explicit local rewriting, editable result, protected regeneration, clipboard copy, native sharing, and Start over. History, model downloads, and persistent settings remain intentionally unavailable until their planned phases.
 
 The package/application ID is `com.kanwarai.voiceprofessionalmessage`.
 
@@ -12,7 +12,7 @@ The package/application ID is `com.kanwarai.voiceprofessionalmessage`.
 
 1. Read [PRODUCT_SPEC.md](PRODUCT_SPEC.md) for what the first version will do.
 2. Read [TASKS.md](TASKS.md) to follow progress. Checked boxes mean completed work.
-3. Phase 5 provides a controlled rewrite test path. Phase 6 will connect the complete sequential workflow and add final-result actions.
+3. Phase 6 provides the complete active-session workflow. Phase 7 will add private local history; current drafts disappear on process death or Start over.
 4. Before device testing, have an Android phone and USB cable available. We propose Android 9 or newer, a 64-bit processor, and preferably at least 4 GB RAM. These are starting targets, not proven compatibility guarantees.
 
 The planned app works offline after its free AI models are downloaded. It will not upload recordings or messages to an AI service. Review generated text before sharing: small models can misunderstand speech or change meaning.
@@ -83,7 +83,7 @@ Obtain `Qwen3-0.6B-Q8_0.gguf` from the official `Qwen/Qwen3-0.6B-GGUF` repositor
 - The app accepts only its expected 16 kHz mono 16-bit PCM WAV, screens clear silence using sample energy, and decodes PCM directly to floats without resampling.
 - whisper.cpp runs through a narrow JNI layer on background dispatchers. English greedy decoding uses at most four CPU threads. Translation, diarization, word timestamps, GPU use, and native transcript/progress printing are disabled.
 - The native context is loaded lazily once per Home workflow, receives cooperative abort requests during inference, and is released with the ViewModel. Cancellation, backgrounding, and navigation prevent further processing and delete the WAV. The initial upstream model-load call has no abort callback, so it must return before its context can be safely released; this remains to be measured on a device.
-- Successful transcripts remain only in memory and can be corrected locally. Empty, whitespace-only, and known no-speech output is rejected. The UI offers Record again and Delete and clearly says rewriting arrives in Phase 5.
+- Successful transcripts remain only in memory and can be corrected locally. Empty, whitespace-only, and known no-speech output is rejected. Phase 6 uses the corrected transcript as the rewrite source and deletes the completed WAV first.
 - Only `arm64-v8a` is built. Native targets use focused `-O3` optimization even in debug builds so future measurements are representative.
 
 ### Development model installation
@@ -93,6 +93,18 @@ Phase 4 intentionally contains no model downloader and no `INTERNET` permission.
 For a debug installation, first launch the app so its private directories exist, copy the verified file to a temporary device location, then use Android's debug-only `run-as` facility to copy it to `no_backup/models/ggml-tiny.en.bin` and remove the temporary copy. The app verifies the size and hash again before loading. Do not commit the model; Phase 8 will provide the production verified download and installation flow.
 
 The benchmark path captures audio duration, model-load time, transcription time, and real-time factor without logging transcript content. Run the same consented corpus with tiny.en and a separately verified base.en model on one physical phone, recording Android Studio Profiler peak memory and device thermal observations. No comparison is complete because no Android device is connected.
+
+## Phase 6 complete workflow
+
+- Stop automatically begins local transcription. The completed WAV is deleted in a non-cancellable cleanup immediately after Whisper finishes, before Qwen can start.
+- **Review transcript** keeps an editable in-memory transcript as the source of truth. The corrected text, current type, and current tone are passed to Qwen only after **Create message**.
+- One workflow mutex serializes Whisper and Qwen. Whisper is released after transcription; Qwen is loaded only for rewrite and released after success, failure, or cancellation.
+- The final message is directly editable. Regenerate reuses the corrected transcript and current type/tone without recording or transcribing again. If the message was edited, a confirmation dialog warns that regeneration will replace it. Failed regeneration preserves the edited result.
+- Copy places only the visible final message on Android's clipboard and confirms **Message copied**. Share opens Android's standard `ACTION_SEND` chooser with only that text and `text/plain` after an explicit tap.
+- Start over cancels active work, waits for native work to stop before release, clears transcript/result/errors, deletes temporary audio, and keeps type/tone selections for convenience.
+- Transcript and result text remain only in ViewModel memory. No Room, DataStore, history, network permission, automatic saving, or automatic external action is present.
+
+See [docs/PHASE6_WORKFLOW.md](docs/PHASE6_WORKFLOW.md) for verification status and remaining device risks.
 
 ## Phase 2 UI behavior
 

@@ -40,6 +40,12 @@ File/database/download work uses Dispatchers.IO. Native inference uses a bounded
 
 The ViewModel owns the generation job; configuration changes preserve it. Actual backgrounding or leaving the workflow cancels inference and releases resources. Kotlin cancellation alone does not stop blocking JNI: bridges must poll a native abort flag/callback and close handles only after workers return. Never free a running context. Timeouts request cooperative abort; a watchdog detects failures but cannot safely kill arbitrary native threads. Native crashes remain a release risk requiring device tests. Model downloads may use WorkManager for resumable background work; no private payload is passed to workers.
 
+### Phase 6 workflow implementation
+
+`HomeViewModel` owns one sealed workflow state and one inference mutex. Stop transitions directly from recording through finalization into transcription. The transcription block releases Whisper in `finally`; WAV deletion then runs in non-cancellable cleanup. Only a transcript-ready state can request Qwen. Rewriting acquires the same mutex, defensively releases Whisper, and always releases Qwen in `finally`. Duplicate taps cannot create another operation while the current job is active.
+
+The result state contains the corrected transcript, immutable last generated value, editable visible value, rewrite metrics, and regeneration-confirmation state. This makes manual edits explicit. Regeneration uses the corrected transcript and current configuration, preserves the prior edited result on failure/cancellation, and never depends on audio. Copy/share are one-shot UI calls derived from the current visible value and are not stored as replayable navigation events. Start over keeps type/tone but clears all private draft state and waits for cancelled native work before final resource release.
+
 ## Error handling and verification
 
 Typed failures distinguish permission, capture, empty audio, missing/corrupt model, unsupported hardware, insufficient storage, inference cancellation/timeout, invalid output, and persistence failure. Do not swallow exceptions or misreport failures as results. Preserve the transcript after rewrite failure and the previous edited result after regeneration failure. Cleanup runs on all exits and startup sweeps stale cache audio.

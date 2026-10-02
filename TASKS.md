@@ -60,10 +60,10 @@ Checked means completed and reviewed. Each implementation phase requires a succe
 
 ## Phase 6 — Message generation workflow
 
-- [ ] Connect capture → STT → release → rewrite → validation → result sequentially.
-- [ ] Add stage status, cancellation, duplicate-action guards, and retry recovery.
-- [ ] Implement edit, regenerate with edit preservation, copy, and native share.
-- [ ] Verify offline flow, lifecycle transitions, failure preservation, build, self-review/commit.
+- [x] Connect capture → STT → release → rewrite → validation → editable result sequentially.
+- [x] Add typed stage status, cooperative cancellation, one inference mutex, duplicate-action guards, and retry recovery.
+- [x] Implement editable results, protected regeneration, clipboard copy, native share, and Start over.
+- [x] Verify static offline/privacy boundaries, lifecycle transitions, failure preservation, builds, tests, and self-review; keep hardware validation open.
 
 ## Phase 7 — History
 

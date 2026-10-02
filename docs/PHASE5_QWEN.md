@@ -16,7 +16,7 @@ The official repository does not publish a 4-bit artifact. Q8_0 is used to retai
 
 ## Runtime boundaries
 
-`libqwen_rewrite.so` contains llama.cpp and its own pinned ggml objects with hidden symbol visibility. `libvoice_whisper.so` contains the older whisper.cpp ggml objects. Neither target links against the other's ggml. The workflow releases the Whisper context before creating the single Qwen context, retains at most that one Qwen context for retry, and releases it before recording again or leaving the workflow.
+`libqwen_rewrite.so` contains llama.cpp and its own pinned ggml objects with hidden symbol visibility. `libvoice_whisper.so` contains the older whisper.cpp ggml objects. Neither target links against the other's ggml. Phase 6 releases Whisper before creating the single Qwen context and releases Qwen after every rewrite attempt.
 
 Context is fixed at 2,048 tokens and generation at 384 tokens. The complete templated prompt plus the full output allowance must fit; input is rejected rather than truncated. The official Qwen `/no_think` soft switch is included and reasoning/template leakage is rejected. Sampling is conservative and repeatable for a fixed build: temperature 0.7, top-k 20, top-p 0.8, presence penalty 1.5, fixed seed `0x51A7E`. Cross-device bit-for-bit determinism is not claimed.
 
