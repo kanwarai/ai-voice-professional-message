@@ -51,12 +51,12 @@ Checked means completed and reviewed. Each implementation phase requires a succe
 
 ## Phase 5 — Qwen integration
 
-- [ ] Pin llama.cpp and verify combined Whisper/Qwen ggml symbol/linkage compatibility.
-- [ ] Select verified Qwen3-0.6B GGUF revision; compare mobile Q4_K_M to baseline.
-- [ ] Implement JNI RewriteEngine with short template, non-thinking mode, bounded context/output.
-- [ ] Implement validation, native abort, load/unload and safe error handling.
+- [x] Pin llama.cpp and isolate the Whisper/Qwen ggml implementations in separate shared libraries with hidden internals; package and inspect both together.
+- [x] Select the official Qwen3-0.6B Q8_0 GGUF with exact revision, size, hash, and license; the official repository has no verified 4-bit artifact.
+- [x] Implement JNI RewriteEngine with the Qwen chat template, `/no_think`, a 2,048-token context, and 384-token output allowance.
+- [x] Implement validation, cooperative native abort, one-context load/release, metrics, and typed safe errors.
 - [ ] Evaluate repeatability, fidelity, reasoning leakage, latency, and peak memory on real devices.
-- [ ] Build both engines together, audit logs, self-review/commit.
+- [x] Build both engines together, compile tests, audit logs/permissions/APK/symbols, and self-review.
 
 ## Phase 6 — Message generation workflow
 

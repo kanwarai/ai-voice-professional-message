@@ -172,6 +172,9 @@ fun HomeScreen(
                             onCancelTranscription = { viewModel.cancelTranscription() },
                             onDeleteTranscript = viewModel::discardTranscript,
                             onTranscriptChanged = viewModel::updateTranscript,
+                            onRewrite = viewModel::rewriteMessage,
+                            onCancelRewrite = { viewModel.cancelRewrite() },
+                            onBackToTranscript = viewModel::backToTranscript,
                             onDismissError = viewModel::dismissError,
                             onOpenSettings = { context.openAppSettings() },
                             modifier = Modifier.weight(1f),
@@ -199,6 +202,9 @@ fun HomeScreen(
                             onCancelTranscription = { viewModel.cancelTranscription() },
                             onDeleteTranscript = viewModel::discardTranscript,
                             onTranscriptChanged = viewModel::updateTranscript,
+                            onRewrite = viewModel::rewriteMessage,
+                            onCancelRewrite = { viewModel.cancelRewrite() },
+                            onBackToTranscript = viewModel::backToTranscript,
                             onDismissError = viewModel::dismissError,
                             onOpenSettings = { context.openAppSettings() },
                         )
@@ -226,6 +232,9 @@ private fun BrandAndRecord(
     onCancelTranscription: () -> Unit,
     onDeleteTranscript: () -> Unit,
     onTranscriptChanged: (String) -> Unit,
+    onRewrite: () -> Unit,
+    onCancelRewrite: () -> Unit,
+    onBackToTranscript: () -> Unit,
     onDismissError: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
@@ -256,6 +265,9 @@ private fun BrandAndRecord(
             onCancelTranscription = onCancelTranscription,
             onDeleteTranscript = onDeleteTranscript,
             onTranscriptChanged = onTranscriptChanged,
+            onRewrite = onRewrite,
+            onCancelRewrite = onCancelRewrite,
+            onBackToTranscript = onBackToTranscript,
             onDismissError = onDismissError,
             onOpenSettings = onOpenSettings,
             modifier = Modifier.padding(top = 20.dp),
@@ -288,6 +300,9 @@ private fun RecordingControl(
     onCancelTranscription: () -> Unit,
     onDeleteTranscript: () -> Unit,
     onTranscriptChanged: (String) -> Unit,
+    onRewrite: () -> Unit,
+    onCancelRewrite: () -> Unit,
+    onBackToTranscript: () -> Unit,
     onDismissError: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
@@ -363,11 +378,9 @@ private fun RecordingControl(
                     label = { Text("Transcript text") },
                     minLines = 4,
                 )
-                Text(
-                    text = "Message rewriting will be added in Phase 5.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
+                Button(onClick = onRewrite, enabled = recordingState.text.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                    Text("Rewrite message")
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -379,6 +392,34 @@ private fun RecordingControl(
                     Button(onClick = onRecord, modifier = Modifier.weight(1f)) {
                         Text("Record again")
                     }
+                }
+            }
+            is RecordingState.Rewriting -> {
+                ProgressState("Polishing message locally…")
+                Text("The writing model runs only on this device.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedButton(onClick = onCancelRewrite) { Text("Cancel rewrite") }
+            }
+            is RecordingState.Rewritten -> {
+                Text("Rewritten message", modifier = Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                Text(recordingState.message, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodyLarge)
+                Text("Original transcript", style = MaterialTheme.typography.titleMedium)
+                Text(recordingState.transcript.text, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onBackToTranscript, modifier = Modifier.weight(1f)) { Text("Back") }
+                    Button(onClick = onRewrite, modifier = Modifier.weight(1f)) { Text("Retry") }
+                }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onDeleteTranscript, modifier = Modifier.weight(1f)) { Text("Discard") }
+                    OutlinedButton(onClick = onRecord, modifier = Modifier.weight(1f)) { Text("Record again") }
+                }
+            }
+            is RecordingState.RewriteFailed -> {
+                Icon(Icons.Outlined.Warning, contentDescription = null)
+                Text("Rewrite problem", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Text(recordingState.error.userMessage, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick = onBackToTranscript) { Text("Back") }
+                    Button(onClick = onRewrite) { Text("Try again") }
                 }
             }
             is RecordingState.TranscriptionFailed -> {

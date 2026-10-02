@@ -12,6 +12,14 @@ import com.kanwarai.voiceprofessionalmessage.ai.speech.SpeechToTextEngine
 import com.kanwarai.voiceprofessionalmessage.ai.speech.TranscriptionError
 import com.kanwarai.voiceprofessionalmessage.ai.speech.TranscriptionResult
 import com.kanwarai.voiceprofessionalmessage.ai.speech.WhisperSpeechToTextEngine
+import com.kanwarai.voiceprofessionalmessage.ai.rewrite.QwenRewriteEngine
+import com.kanwarai.voiceprofessionalmessage.ai.rewrite.RewriteEngine
+import com.kanwarai.voiceprofessionalmessage.ai.rewrite.RewriteError
+import com.kanwarai.voiceprofessionalmessage.ai.rewrite.RewriteMetrics
+import com.kanwarai.voiceprofessionalmessage.ai.rewrite.RewriteMessageType
+import com.kanwarai.voiceprofessionalmessage.ai.rewrite.RewriteRequest
+import com.kanwarai.voiceprofessionalmessage.ai.rewrite.RewriteResult
+import com.kanwarai.voiceprofessionalmessage.ai.rewrite.RewriteTone
 import com.kanwarai.voiceprofessionalmessage.audio.AudioRecorder
 import com.kanwarai.voiceprofessionalmessage.audio.AudioRecorderError
 import com.kanwarai.voiceprofessionalmessage.audio.AudioRecorderEvent
@@ -36,6 +44,7 @@ data class HomeUiState(
     val configurationEnabled: Boolean
         get() = recordingState is RecordingState.Idle ||
             recordingState is RecordingState.Transcript ||
+            recordingState is RecordingState.RewriteFailed ||
             recordingState is RecordingState.TranscriptionFailed ||
             recordingState is RecordingState.PermissionDenied ||
             recordingState is RecordingState.Error
@@ -54,6 +63,9 @@ sealed interface RecordingState {
         val modelLoadMillis: Long,
         val transcriptionMillis: Long,
     ) : RecordingState
+    data class Rewriting(val transcript: Transcript) : RecordingState
+    data class Rewritten(val transcript: Transcript, val message: String, val metrics: RewriteMetrics) : RecordingState
+    data class RewriteFailed(val transcript: Transcript, val error: RewriteError) : RecordingState
     data class TranscriptionFailed(val error: TranscriptionError) : RecordingState
     data class PermissionDenied(val permanently: Boolean) : RecordingState
     data class Error(val message: String) : RecordingState
@@ -83,6 +95,7 @@ class HomeViewModel(
     private val savedStateHandle: SavedStateHandle,
     private val audioRecorder: AudioRecorder,
     private val speechToTextEngine: SpeechToTextEngine,
+    private val rewriteEngine: RewriteEngine,
     private val clock: MonotonicClock = MonotonicClock(SystemClock::elapsedRealtime),
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(
@@ -145,6 +158,7 @@ class HomeViewModel(
     fun startRecording() {
         if (operationJob?.isActive == true) return
         if (mutableState.value.recordingState is RecordingState.Recording) return
+        rewriteEngine.release()
         mutableState.value = mutableState.value.copy(
             recordingState = RecordingState.Starting,
             notice = null,
@@ -218,10 +232,57 @@ class HomeViewModel(
 
     fun discardTranscript() {
         if (mutableState.value.recordingState is RecordingState.Transcript ||
-            mutableState.value.recordingState is RecordingState.TranscriptionFailed
+            mutableState.value.recordingState is RecordingState.TranscriptionFailed ||
+            mutableState.value.recordingState is RecordingState.Rewritten ||
+            mutableState.value.recordingState is RecordingState.RewriteFailed
         ) {
+            rewriteEngine.release()
             mutableState.value = mutableState.value.copy(recordingState = RecordingState.Idle)
         }
+    }
+
+    fun rewriteMessage() {
+        if (operationJob?.isActive == true) return
+        val transcript = when (val current = mutableState.value.recordingState) {
+            is RecordingState.Transcript -> current
+            is RecordingState.Rewritten -> current.transcript
+            is RecordingState.RewriteFailed -> current.transcript
+            else -> return
+        }
+        mutableState.value = mutableState.value.copy(recordingState = RecordingState.Rewriting(transcript), notice = null)
+        operationJob = viewModelScope.launch {
+            // Enforce the sequential memory policy before loading Qwen.
+            speechToTextEngine.release()
+            val request = RewriteRequest(
+                transcript = transcript.text,
+                messageType = RewriteMessageType.valueOf(mutableState.value.messageType.name),
+                tone = RewriteTone.valueOf(mutableState.value.tone.name),
+            )
+            when (val result = rewriteEngine.rewrite(request)) {
+                is RewriteResult.Success -> mutableState.value = mutableState.value.copy(
+                    recordingState = RecordingState.Rewritten(transcript, result.message, result.metrics),
+                )
+                is RewriteResult.Failure -> if (result.error != RewriteError.Cancelled) {
+                    mutableState.value = mutableState.value.copy(recordingState = RecordingState.RewriteFailed(transcript, result.error))
+                }
+            }
+        }
+    }
+
+    fun cancelRewrite(message: String? = null) {
+        val current = mutableState.value.recordingState as? RecordingState.Rewriting ?: return
+        rewriteEngine.cancel()
+        operationJob?.cancel()
+        mutableState.value = mutableState.value.copy(recordingState = current.transcript, notice = message)
+    }
+
+    fun backToTranscript() {
+        val transcript = when (val current = mutableState.value.recordingState) {
+            is RecordingState.Rewritten -> current.transcript
+            is RecordingState.RewriteFailed -> current.transcript
+            else -> return
+        }
+        mutableState.value = mutableState.value.copy(recordingState = transcript)
     }
 
     fun updateTranscript(text: String) {
@@ -235,8 +296,11 @@ class HomeViewModel(
         if (mutableState.value.recordingState is RecordingState.Recording ||
             mutableState.value.recordingState is RecordingState.Starting ||
             mutableState.value.recordingState is RecordingState.Transcribing
+            || mutableState.value.recordingState is RecordingState.Rewriting
         ) {
-            if (mutableState.value.recordingState is RecordingState.Transcribing) {
+            if (mutableState.value.recordingState is RecordingState.Rewriting) {
+                cancelRewrite("Rewriting was cancelled when the app moved to the background.")
+            } else if (mutableState.value.recordingState is RecordingState.Transcribing) {
                 cancelTranscription("Transcription was cancelled when the app moved to the background.")
             } else {
                 cancelRecording("Recording was cancelled when the app moved to the background.")
@@ -251,8 +315,11 @@ class HomeViewModel(
             is RecordingState.Stopping,
             -> cancelRecording()
             is RecordingState.Transcribing -> cancelTranscription()
+            is RecordingState.Rewriting -> cancelRewrite()
             is RecordingState.Transcript,
             is RecordingState.TranscriptionFailed,
+            is RecordingState.Rewritten,
+            is RecordingState.RewriteFailed,
             -> discardTranscript()
             else -> Unit
         }
@@ -285,6 +352,7 @@ class HomeViewModel(
             audioRecorder.discardCompleted()
         }
         speechToTextEngine.release()
+        rewriteEngine.release()
         super.onCleared()
     }
 
@@ -380,6 +448,7 @@ class HomeViewModel(
                     savedStateHandle = createSavedStateHandle(),
                     audioRecorder = audioRecorder,
                     speechToTextEngine = WhisperSpeechToTextEngine(context.applicationContext),
+                    rewriteEngine = QwenRewriteEngine(context.applicationContext),
                 )
             }
         }

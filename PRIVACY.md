@@ -2,7 +2,7 @@
 
 ## V1 promise
 
-Recordings and Phase 4 transcripts stay on the device. Generated messages remain future work. No cloud inference, analytics, advertising SDK, crash-upload SDK, or account is planned. Model downloads are the only planned app-initiated network operation; clipboard/share transfers happen only on explicit user action.
+Recordings, transcripts, and Phase 5 generated messages stay on the device. No cloud inference, analytics, advertising SDK, crash-upload SDK, or account is planned. Model downloads are the only planned app-initiated network operation; clipboard/share transfers happen only on explicit user action in a later phase.
 
 ## Microphone and temporary audio
 
@@ -12,7 +12,7 @@ The app deletes audio on recording cancellation/interruption, transcription succ
 
 ## Transcript and message handling
 
-Phase 4 holds the unsaved transcript in ViewModel memory, never in logs, route arguments, notifications, saved-state bundles, or worker inputs. Discarding it, leaving the workflow, or process death removes it. Later successful history entries will contain transcript and final editable message plus tone/type/timestamps. Regeneration will use the transcript, never original audio.
+Phase 5 holds the unsaved transcript and generated message in ViewModel memory, never in logs, route arguments, notifications, saved-state bundles, or worker inputs. Discarding, leaving the workflow, or process death removes them. The Qwen model is manually installed under private no-backup storage and is verified before loading; it is not bundled or downloaded by this phase. Later successful history entries will contain transcript and final editable message plus tone/type/timestamps. Regeneration will use the transcript, never original audio.
 
 ## Local history and settings
 
@@ -30,6 +30,6 @@ Copy transfers the message to Android's clipboard, which is outside the app's st
 
 ## Permissions and networking
 
-RECORD_AUDIO is the sole runtime permission planned. INTERNET is a normal manifest permission for model downloads; ACCESS_NETWORK_STATE may be needed for download constraints. No contacts, location, camera, external storage, phone, or background microphone permission is planned. If download notifications later require notification permission, reassess necessity and document it before requesting it.
+RECORD_AUDIO is the sole runtime permission currently present. Phase 5 adds no `INTERNET` or network-state permission. A later model-download phase may require normal `INTERNET` and `ACCESS_NETWORK_STATE` permissions. No contacts, location, camera, external storage, phone, or background microphone permission is planned. If download notifications later require notification permission, reassess necessity and document it before requesting it.
 
 Use HTTPS, approved download hosts, and a pinned artifact manifest. Public hosts may receive IP address and download metadata, never private notes. Test offline operation and observe network traffic during capture/transcription/rewrite to verify the boundary. Audit backups, logs, crash paths, deletion, and permission denial before release.

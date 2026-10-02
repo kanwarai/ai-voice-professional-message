@@ -36,3 +36,48 @@ endforeach()
 find_library(log-lib log)
 target_link_libraries(voice_whisper PRIVATE ggml ${log-lib} android)
 target_link_options(voice_whisper PRIVATE -Wl,--gc-sections -Wl,--exclude-libs,ALL)
+
+# llama.cpp is compiled into a single, separately hidden JNI library. Its ggml
+# objects never link to voice_whisper, so the two pinned ggml revisions cannot
+# resolve each other's symbols at runtime.
+set(LLAMA_ROOT third_party/llamacpp)
+file(GLOB LLAMA_CORE CONFIGURE_DEPENDS ${LLAMA_ROOT}/src/*.cpp)
+file(GLOB LLAMA_MODELS CONFIGURE_DEPENDS ${LLAMA_ROOT}/src/models/*.cpp)
+set(QWEN_GGML
+    ${LLAMA_ROOT}/ggml/src/ggml.c
+    ${LLAMA_ROOT}/ggml/src/ggml.cpp
+    ${LLAMA_ROOT}/ggml/src/ggml-alloc.c
+    ${LLAMA_ROOT}/ggml/src/ggml-backend.cpp
+    ${LLAMA_ROOT}/ggml/src/ggml-backend-dl.cpp
+    ${LLAMA_ROOT}/ggml/src/ggml-backend-meta.cpp
+    ${LLAMA_ROOT}/ggml/src/ggml-backend-reg.cpp
+    ${LLAMA_ROOT}/ggml/src/ggml-opt.cpp
+    ${LLAMA_ROOT}/ggml/src/ggml-threading.cpp
+    ${LLAMA_ROOT}/ggml/src/ggml-quants.c
+    ${LLAMA_ROOT}/ggml/src/gguf.cpp
+    ${LLAMA_ROOT}/ggml/src/ggml-cpu/ggml-cpu.c
+    ${LLAMA_ROOT}/ggml/src/ggml-cpu/ggml-cpu.cpp
+    ${LLAMA_ROOT}/ggml/src/ggml-cpu/repack.cpp
+    ${LLAMA_ROOT}/ggml/src/ggml-cpu/iqp.cpp
+    ${LLAMA_ROOT}/ggml/src/ggml-cpu/hbm.cpp
+    ${LLAMA_ROOT}/ggml/src/ggml-cpu/quants.c
+    ${LLAMA_ROOT}/ggml/src/ggml-cpu/traits.cpp
+    ${LLAMA_ROOT}/ggml/src/ggml-cpu/binary-ops.cpp
+    ${LLAMA_ROOT}/ggml/src/ggml-cpu/unary-ops.cpp
+    ${LLAMA_ROOT}/ggml/src/ggml-cpu/vec.cpp
+    ${LLAMA_ROOT}/ggml/src/ggml-cpu/ops.cpp
+    ${LLAMA_ROOT}/ggml/src/ggml-cpu/arch/arm/quants.c
+    ${LLAMA_ROOT}/ggml/src/ggml-cpu/arch/arm/repack.cpp
+)
+add_library(qwen_rewrite SHARED qwen_jni.cpp ${LLAMA_CORE} ${LLAMA_MODELS} ${QWEN_GGML})
+target_include_directories(qwen_rewrite PRIVATE
+    ${LLAMA_ROOT}/include ${LLAMA_ROOT}/src
+    ${LLAMA_ROOT}/ggml/include ${LLAMA_ROOT}/ggml/src ${LLAMA_ROOT}/ggml/src/ggml-cpu
+)
+target_compile_features(qwen_rewrite PRIVATE cxx_std_17)
+target_compile_definitions(qwen_rewrite PRIVATE
+    GGML_BACKEND_BUILD _GNU_SOURCE
+)
+target_compile_options(qwen_rewrite PRIVATE -O3 -fvisibility=hidden -fvisibility-inlines-hidden)
+target_link_libraries(qwen_rewrite PRIVATE ${log-lib} android)
+target_link_options(qwen_rewrite PRIVATE -Wl,--gc-sections -Wl,--exclude-libs,ALL)

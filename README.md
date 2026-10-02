@@ -4,7 +4,7 @@ Speak naturally, then review a clean message you can edit, copy, or share.
 
 ## Current status
 
-Phase 4 local speech-to-text is implemented (1 October 2026). After recording, the app validates the private WAV and a manually installed tiny.en model, runs an arm64 CPU-only whisper.cpp JNI engine off the UI thread, shows the transcript in memory, and deletes the WAV. Rewriting, local history, model downloads, and persistent settings remain intentionally unavailable until their planned phases.
+Phase 5 local rewriting is implemented (2 October 2026). After transcription, an explicit Rewrite message action releases Whisper and runs a manually installed Qwen3-0.6B model through llama.cpp off the UI thread. The original transcript remains visible beside the validated generated text. Copy, share, final-result integration, history, model downloads, and persistent settings remain intentionally unavailable until their planned phases.
 
 The package/application ID is `com.kanwarai.voiceprofessionalmessage`.
 
@@ -12,7 +12,7 @@ The package/application ID is `com.kanwarai.voiceprofessionalmessage`.
 
 1. Read [PRODUCT_SPEC.md](PRODUCT_SPEC.md) for what the first version will do.
 2. Read [TASKS.md](TASKS.md) to follow progress. Checked boxes mean completed work.
-3. The next phase adds local Qwen rewriting. Phase 4 ends at an honest transcript and does not generate a professional message.
+3. Phase 5 provides a controlled rewrite test path. Phase 6 will connect the complete sequential workflow and add final-result actions.
 4. Before device testing, have an Android phone and USB cable available. We propose Android 9 or newer, a 64-bit processor, and preferably at least 4 GB RAM. These are starting targets, not proven compatibility guarantees.
 
 The planned app works offline after its free AI models are downloaded. It will not upload recordings or messages to an AI service. Review generated text before sharing: small models can misunderstand speech or change meaning.
@@ -43,6 +43,7 @@ Android Studio is not installed in the standard locations on the current machine
 | CMake | 3.22.1 |
 | Native ABI | arm64-v8a |
 | whisper.cpp | v1.9.4 / `927cfce34f31707e17f2bff35c349632fb9e2c3a` |
+| llama.cpp | v0.4.1 / `b29c606e28a01b1bc8c1351026a0fa6e616bf6c4` |
 
 The compatible March 2026 AndroidX line is intentional: newer September releases require compileSdk 37 and AGP 9.1+, while API 37 was not selected as a stable platform for this phase.
 
@@ -54,7 +55,19 @@ Open the root folder in Android Studio, allow SDK/Gradle sync, then run the `app
 .\gradlew.bat assembleDebug testDebugUnitTest lintDebug
 ```
 
-The debug APK is generated at `app/build/outputs/apk/debug/app-debug.apk`. On 1 October 2026, a clean build compiled the arm64 Whisper library and produced the debug and device-test APKs; 23 unit tests passed and lint completed with zero errors. APK inspection found only `arm64-v8a` native libraries and only `RECORD_AUDIO` plus AndroidX's app-scoped dynamic-receiver signature permission. Source scans found no content logging, networking, storage permission, Qwen integration, persistence layer, model binary, recording, or private transcript. Lint's 12 warnings are deliberate version notices plus the expected ChromeOS x86 warning for Phase 4's arm64-only scope. ADB reported no connected device, so UI, microphone, local transcription, native cancellation, lifecycle, performance, and benchmark tests were not executed.
+The debug APK is generated at `app/build/outputs/apk/debug/app-debug.apk`. Phase 5 verification results and remaining device checks are recorded in [docs/PHASE5_QWEN.md](docs/PHASE5_QWEN.md).
+
+## Phase 5 rewriting behavior
+
+- Rewriting begins only after the user taps **Rewrite message** from a transcript. It accepts only the transcript, Message/Email type, and the selected tone.
+- Qwen runs locally through a narrow `RewriteEngine`; Compose never calls JNI. Prompt construction treats transcript text as untrusted content and requests Qwen's `/no_think` behavior.
+- The 2,048-token context reserves up to 384 generated tokens. Inputs that do not fit are rejected without truncation. Validation rejects incomplete, repetitive, reasoning/template-leaking, and suspicious number/date-changing output.
+- Whisper and Qwen have separate shared libraries with hidden native internals. Whisper is released before the single Qwen context is created; Qwen is released before recording again, discard, navigation, or ViewModel destruction.
+- No transcript or output is logged, persisted, copied, shared, or sent over a network in this phase.
+
+### Development Qwen installation
+
+Obtain `Qwen3-0.6B-Q8_0.gguf` from the official `Qwen/Qwen3-0.6B-GGUF` repository at revision `23749fefcc72300e3a2ad315e1317431b06b590a`. Verify exactly 639,446,688 bytes and SHA-256 `18d608d38b934c86fc3f3a050157b2d4df8d12330de6d13af3ba201edd0e6539`, then install it as `no_backup/models/Qwen3-0.6B-Q8_0.gguf` using the same debug-only `run-as` process described for Whisper. The app verifies it again before native loading. The model is intentionally absent from Git and the APK.
 
 ## Phase 3 recording behavior
 

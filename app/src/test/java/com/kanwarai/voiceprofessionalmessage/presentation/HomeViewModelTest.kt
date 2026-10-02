@@ -35,11 +35,11 @@ class HomeViewModelTest {
     fun selectionsUpdateAndRestoreFromSavedState() = runTest(mainDispatcherRule.testDispatcher) {
         val savedStateHandle = SavedStateHandle()
         val recorder = FakeAudioRecorder()
-        val viewModel = HomeViewModel(savedStateHandle, recorder, FakeSpeechToTextEngine())
+        val viewModel = HomeViewModel(savedStateHandle, recorder, FakeSpeechToTextEngine(), FakeRewriteEngine())
 
         viewModel.selectMessageType(MessageType.Email)
         viewModel.selectTone(MessageTone.Friendly)
-        val restoredViewModel = HomeViewModel(savedStateHandle, recorder, FakeSpeechToTextEngine())
+        val restoredViewModel = HomeViewModel(savedStateHandle, recorder, FakeSpeechToTextEngine(), FakeRewriteEngine())
 
         assertEquals(MessageType.Email, restoredViewModel.state.value.messageType)
         assertEquals(MessageTone.Friendly, restoredViewModel.state.value.tone)
@@ -158,6 +158,7 @@ class HomeViewModelTest {
             SavedStateHandle(),
             recorder,
             FakeSpeechToTextEngine(),
+            FakeRewriteEngine(),
             MonotonicClock { now },
         )
         viewModel.startRecording()
@@ -209,6 +210,19 @@ class HomeViewModelTest {
         assertEquals("Corrected transcript", transcript.text)
     }
 
+    @Test fun rewriteIsExplicitAndPreservesOriginalTranscript() = runTest(mainDispatcherRule.testDispatcher) {
+        val speech = FakeSpeechToTextEngine()
+        val rewrite = FakeRewriteEngine()
+        val viewModel = HomeViewModel(SavedStateHandle(), FakeAudioRecorder(), speech, rewrite, MonotonicClock { 1_000 })
+        viewModel.startRecording(); runCurrent(); viewModel.stopRecording(); runCurrent()
+        assertEquals(0, rewrite.calls)
+        viewModel.rewriteMessage(); runCurrent()
+        val state = viewModel.state.value.recordingState as RecordingState.Rewritten
+        assertEquals("Test transcript", state.transcript.text)
+        assertEquals("Polished message", state.message)
+        assertEquals(1, speech.releaseCalls)
+    }
+
     @Test
     fun recorderFailureMapsToSafeUiError() = runTest(mainDispatcherRule.testDispatcher) {
         val recorder = FakeAudioRecorder().apply {
@@ -253,6 +267,7 @@ class HomeViewModelTest {
         savedStateHandle = SavedStateHandle(),
         audioRecorder = recorder,
         speechToTextEngine = speechEngine,
+        rewriteEngine = FakeRewriteEngine(),
         clock = MonotonicClock { 1_000L },
     )
 }
